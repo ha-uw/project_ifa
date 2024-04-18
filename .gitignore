@@ -1,0 +1,5 @@
+venv/
+tests*
+*.tab
+__pycache__
+data/

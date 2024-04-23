@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# from kale.evaluate.metrics import concord_index
+from src.utils.data_utils import concord_index
 
 
 # Encoder
@@ -154,7 +154,7 @@ class BaseDTATrainer(pl.LightningModule):
             ci = concord_index(y, y_pred)
             self.logger.log_metrics({"train_step_ci": ci}, self.global_step)
         self.logger.log_metrics({"train_step_loss": loss}, self.global_step)
-        self.log("train_step_loss_2", loss, prog_bar=True)
+        self.log("train_step_loss_2", loss, on_epoch=True, on_step=False, prog_bar=True)
 
         return loss
 
@@ -165,7 +165,7 @@ class BaseDTATrainer(pl.LightningModule):
         x_drug, x_target, y = valid_batch
         y_pred = self(x_drug, x_target)
         loss = F.mse_loss(y_pred, y.view(-1, 1))
-        self.log("val_loss", loss, on_epoch=True, prog_bar=True)
+        self.log("val_loss", loss, on_epoch=True, on_step=False, prog_bar=True)
 
         return loss
 
@@ -179,7 +179,7 @@ class BaseDTATrainer(pl.LightningModule):
         if self.ci_metric:
             ci = concord_index(y, y_pred)
             self.log("test_ci", ci, on_epoch=True, on_step=False)
-        self.log("test_loss", loss, on_epoch=True, prog_bar=True)
+        self.log("test_loss", loss, on_epoch=True, on_step=False, prog_bar=True)
 
         return loss
 

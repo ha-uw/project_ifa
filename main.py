@@ -14,7 +14,7 @@ from src.models.deepDTA import CNNEncoder, MLPDecoder, DeepDTATrainer
 set_float32_matmul_precision("medium")
 
 dataset_path = "./data"
-dataset_name = "DAVIS"
+dataset_name = "KIBA"
 
 # ---- encoder hyper-parameter ----
 drug_dim = 128  # cfg.MODEL.DRUG_DIM
@@ -34,6 +34,8 @@ drug_filter_length = [4, 6, 8]  # cfg.MODEL.DRUG_FILTER_LENGTH
 
 target_filter_length = [4, 8, 12]  # cfg.MODEL.TARGET_FILTER_LENGTH
 
+ci_metric = True
+
 # ---- decoder hyper-parameter ----
 decoder_in_dim = 192  # cfg.MODEL.MLP_IN_DIM
 decoder_hidden_dim = 1024  # cfg.MODEL.MLP_HIDDEN_DIM
@@ -41,7 +43,7 @@ decoder_out_dim = 512  # cfg.MODEL.MLP_OUT_DIM
 dropout_rate = 0.1  # cfg.MODEL.MLP_DROPOUT_RATE
 
 # ------------ sorver --------------
-seed = 2020  # _C.SOLVER.SEED
+seed = 42  # _C.SOLVER.SEED
 
 train_batch_size = 256  # _C.SOLVER.TRAIN_BATCH_SIZE
 test_batch_size = 256  # _C.SOLVER.TEST_BATCH_SIZE
@@ -52,8 +54,11 @@ max_epochs = 100  # _C.SOLVER.MAX_EPOCHS
 lr = 0.001  # cfg.SOLVER.LR
 
 # ------------ early stop ------------------
+early_stop = False
 min_delta = 0.001
-patience = 2
+patience = 20
+
+fast_dev_run = False
 
 # =============================== Code ==================================
 
@@ -84,7 +89,13 @@ def get_model():
         include_decoder_layers=True,
     )
 
-    model = DeepDTATrainer(drug_encoder, target_encoder, decoder, lr)
+    model = DeepDTATrainer(
+        drug_encoder=drug_encoder,
+        target_encoder=target_encoder,
+        decoder=decoder,
+        lr=lr,
+        ci_metric=ci_metric,
+    )
 
     return model
 
@@ -97,6 +108,8 @@ def main():
         "outputs",
         name=dataset_name,
     )
+
+    pl.seed_everything(seed=seed, workers=True)
 
     # ---- set dataset ----
     train_dataset = BindingDBDataset(
@@ -132,12 +145,18 @@ def main():
         mode="min",
     )
 
+    callbacks = [checkpoint_callback]
+
+    if early_stop:
+        callbacks.append(early_stop_callback)
+
     trainer = pl.Trainer(
         max_epochs=max_epochs,
         accelerator="auto",
         devices="auto",
         logger=tb_logger,
-        callbacks=[checkpoint_callback, early_stop_callback],
+        callbacks=callbacks,
+        fast_dev_run=fast_dev_run,
     )
     trainer.fit(model, train_dataloaders=train_loader, val_dataloaders=valid_loader)
     trainer.test(dataloaders=test_loader)

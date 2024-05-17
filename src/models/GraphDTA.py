@@ -1,7 +1,14 @@
 import torch
 from torch import nn
 from torch.nn import functional as F
-from torch_geometric.nn import global_add_pool, global_max_pool, global_mean_pool
+from torch_geometric.nn import (
+    GATConv,
+    GCNConv,
+    GINConv,
+    global_add_pool,
+    global_max_pool,
+    global_mean_pool,
+)
 
 # Model parameters
 NUM_FEATURES_XD = 78
@@ -18,36 +25,12 @@ conv_xt1_in_channels = 1000
 
 
 class GATNet(nn.Module):
-    """
-    GATNet class implements a Graph Attention Network (GAT) for graph-based and sequence-based data fusion.
-
-    Args:
-        num_features_xd (int): Number of features for the graph data (default: 78).
-        n_output (int): Number of output units (default: 1).
-        num_features_xt (int): Number of features for the protein sequence data (default: 25).
-        num_filters (int): Number of filters for the protein sequence convolutional layer (default: 32).
-        embed_dim (int): Dimension of the embedding for the protein sequence data (default: 128).
-        output_dim (int): Dimension of the output features (default: 128).
-        dropout (float): Dropout rate (default: 0.2).
-
-    Attributes:
-        gcn1 (nn.GATConv): Graph Convolutional Layer 1.
-        gcn2 (nn.GATConv): Graph Convolutional Layer 2.
-        fc_g1 (nn.Linear): Fully connected layer for graph data.
-        embedding_xt (nn.Embedding): Embedding layer for protein sequence data.
-        conv_xt1 (nn.Conv1d): Convolutional layer for protein sequence data.
-        fc_xt (nn.Linear): Fully connected layer for protein sequence data.
-        fc1 (nn.Linear): Fully connected layer 1 for feature combination.
-        fc2 (nn.Linear): Fully connected layer 2 for feature combination.
-        out (nn.Linear): Output layer.
-
-    """
+    """ """
 
     def __init__(
         self,
         num_features_xd=78,
         n_output=1,
-        num_features_xt=25,
         num_filters=32,
         embed_dim=128,
         output_dim=128,
@@ -56,27 +39,12 @@ class GATNet(nn.Module):
         super(GATNet, self).__init__()
 
         # Graph layers
-        self.gcn1 = nn.GATConv(
-            num_features_xd, num_features_xd, heads=10, dropout=dropout
-        )
-        self.gcn2 = nn.GATConv(num_features_xd * 10, output_dim, dropout=dropout)
+        self.gcn1 = GATConv(num_features_xd, num_features_xd, heads=10, dropout=dropout)
+        self.gcn2 = GATConv(num_features_xd * 10, output_dim, dropout=dropout)
         self.fc_g1 = nn.Linear(output_dim, output_dim)
-
-        # Protein sequence processing layers
-        self.embedding_xt = nn.Embedding(num_features_xt + 1, embed_dim)
-        self.conv_xt1 = nn.Conv1d(
-            in_channels=embed_dim, out_channels=num_filters, kernel_size=8
-        )
-        self.fc_xt = nn.Linear(32 * 121, output_dim)
-
-        # Combined layers
-        self.fc1 = nn.Linear(256, 1024)
-        self.fc2 = nn.Linear(1024, 256)
-        self.out = nn.Linear(256, n_output)
 
     def forward(self, data):
         x, edge_index, batch = data.x, data.edge_index, data.batch
-        target = data.target
 
         # Graph data processing
         x = F.dropout(x, p=0.2, training=self.training)
@@ -88,26 +56,7 @@ class GATNet(nn.Module):
         x = self.fc_g1(x)
         x = F.relu(x)
 
-        # Protein processing
-        embedded_xt = self.embedding_xt(target)
-        conv_xt = self.conv_xt1(embedded_xt)
-        conv_xt = F.relu(conv_xt)
-
-        # Flatten
-        xt = conv_xt.view(-1, 32 * 121)
-        xt = self.fc_xt(conv_xt)
-
-        # Combine features and final layers
-        xc = torch.cat((x, xt), 1)
-        xc = self.fc1(xc)
-        xc = F.relu(xc)
-        xc = F.dropout(xc)
-        xc = self.fc2(xc)
-        xc = F.relu(xc)
-        xc = F.dropout(xc)
-        out = self.out(xc)
-
-        return out
+        return x
 
 
 class GAT_GCN(nn.Module):
@@ -125,26 +74,12 @@ class GAT_GCN(nn.Module):
     ):
         super(GAT_GCN, self).__init__()
 
-        self.conv1 = nn.GATConv(
+        self.conv1 = GATConv(
             num_features_xd, num_features_xd, heads=10, dropout=dropout
         )
-        self.conv2 = nn.GCNConv(num_features_xd * 10, num_features_xd * 10)
+        self.conv2 = GCNConv(num_features_xd * 10, num_features_xd * 10)
         self.fc_g1 = nn.Linear(num_features_xd * 10 * 2, 1500)
         self.fc_g2 = nn.Linear(1500, output_dim)
-
-        # Protein sequence processing layers
-        self.embedding_xt = nn.Embedding(num_features_xt + 1, embed_dim)
-        self.conv_xt1 = nn.Conv1d(
-            in_channels=1000,
-            out_channels=num_filters,
-            kernel_size=8,  # TODO check why this is hardcoded to 1000
-        )
-        self.fc_xt = nn.Linear(32 * 121, output_dim)
-
-        # Combined layers
-        self.fc1 = nn.Linear(256, 1024)
-        self.fc2 = nn.Linear(1024, 512)
-        self.out = nn.Linear(512, n_output)
 
     def forward(self, data):
         x, edge_index, batch = data.x, data.edge_index, data.batch
@@ -161,34 +96,11 @@ class GAT_GCN(nn.Module):
         x = F.dropout(x)
         x = self.fc_g2(x)
 
-        # Process protein data (inherited from nn.Module)
-        embedded_xt = self.embedding_xt(target)
-        conv_xt = self.conv_xt1(embedded_xt)
-        #  TODO figure out why there's no relu here
-
-        # Flatten
-        xt = conv_xt.view(-1, 32 * 121)
-        xt = self.fc_xt(conv_xt)
-
-        # Combine features and final layers
-        xc = torch.cat((x, xt), 1)
-        xc = self.fc1(xc)
-        xc = F.relu(xc)
-        xc = F.dropout(xc)
-        xc = self.fc2(xc)
-        xc = F.relu(xc)
-        xc = F.dropout(xc)
-        out = self.out(xc)
-
-        return out
+        return x
 
 
-# TODO
 class GCNNet(nn.Module):
-    """
-    Inherits from nn.Module for protein sequence processing.
-    Defines GCN convolutional layers for graph data representing molecules.
-    """
+    """ """
 
     def __init__(
         self,
@@ -200,30 +112,17 @@ class GCNNet(nn.Module):
         output_dim=128,
         dropout=0.2,
     ):
-        super(GCNNet, self).__init__(
-            num_features_xd, num_features_xt, embed_dim, output_dim, dropout
-        )
-        self.n_output = n_output  # Number of output features (e.g., binding affinity)
+        super(GCNNet, self).__init__()
+        self.n_output = n_output
 
         # GCN layers for graph data (representing molecules)
-        self.conv1 = nn.GCNConv(num_features_xd, num_features_xd)  # First GCN layer
-        self.conv2 = nn.GCNConv(
-            num_features_xd, num_features_xd * 2
-        )  # Second GCN layer, doubles feature dim
-        self.conv3 = nn.GCNConv(
-            num_features_xd * 2, num_features_xd * 4
-        )  # Third GCN layer, doubles feature dim again
+        self.conv1 = GCNConv(num_features_xd, num_features_xd, dropout=dropout)
+        self.conv2 = GCNConv(num_features_xd, num_features_xd * 2, dropout=dropout)
+        self.conv3 = GCNConv(num_features_xd * 2, num_features_xd * 4, dropout=dropout)
 
         # nn.Linear layers for processing graph data after GCN convolutions
         self.fc_g1 = nn.Linear(num_features_xd * 4, 1024)
         self.fc_g2 = nn.Linear(1024, output_dim)
-
-        # Combined layers for final prediction
-        self.fc1 = nn.Linear(
-            2 * output_dim, 1024
-        )  # Combined feature dimension after concatenating with protein sequence
-        self.fc2 = nn.Linear(1024, 512)
-        self.out = nn.Linear(512, self.n_output)
 
     def forward(self, data):
         x, edge_index, batch = data.x, data.edge_index, data.batch
@@ -232,155 +131,81 @@ class GCNNet(nn.Module):
         # Graph data processing with GCN layers
         x = self.conv1(x, edge_index)
         x = F.relu(x)
-        x = self.dropout(x, training=self.training)  # Apply dropout for regularization
-
         x = self.conv2(x, edge_index)
         x = F.relu(x)
-        x = self.dropout(x, training=self.training)
-
         x = self.conv3(x, edge_index)
         x = F.relu(x)
-        x = self.dropout(x, training=self.training)
-        x = global_add_pool(
-            x, batch
-        )  # Global add pooling to aggregate node features in the graph
+        x = global_max_pool(x, batch)
 
-        # Process protein data (inherited from nn.Module)
-        xt = self.process_protein_sequence(target)
+        # Flatten
+        x = self.fc_g1(x)
+        x = F.relu(x)
+        x = F.dropout(x)
+        x = self.fc_g2(x)
+        x = F.dropout(x)
 
-        # Combine features and final layers
-        xc = torch.cat((x, xt), 1)  # Concatenate graph and protein sequence features
-        xc = self.fc1(xc)
-        xc = F.relu(xc)
-        xc = self.dropout(xc)
-
-        xc = self.fc2(xc)
-        xc = F.relu(xc)
-        xc = self.dropout(xc)
-
-        out = self.out(xc)  # Final output layer
-
-        return out
+        return x
 
 
 class GINConvNet(nn.Module):
-    """
-    Inherits from nn.Module for protein sequence processing.
-    Defines nn.GINConv layers for graph data representing molecules.
-    """
-
     def __init__(
         self,
         n_output=1,
         num_features_xd=78,
-        num_features_xt=25,
-        num_filters=32,
+        n_filters=32,
         embed_dim=128,
         output_dim=128,
         dropout=0.2,
     ):
-        super(nn.GINConvNet, self).__init__(
-            num_features_xd, num_features_xt, embed_dim, output_dim, dropout
-        )
-        self.n_output = n_output  # Number of output features (e.g., binding affinity)
+        super().__init__()
+        self.n_output = n_output
 
-        # Hidden layer dimension for nn.GINConv layers
-        self.hidden_dim = 32
-
-        # nn.GINConv layers with nn.Sequential nn.Linear layers and batch normalization
-        self.conv1 = nn.GINConv(
-            nn.Sequential(
-                nn.Linear(num_features_xd, self.hidden_dim),
-                nn.Relu(),
-                nn.Linear(self.hidden_dim, self.hidden_dim),
+        # GIN layers
+        self.conv1 = GINConv(
+            nn=nn.Sequential(
+                nn.Linear(num_features_xd, 32), F.relu(), nn.Linear(32, 32)
             )
         )
-        self.bn1 = torch.nn.BatchNorm1d(self.hidden_dim)
+        self.bn1 = nn.BatchNorm1d(32)
 
-        self.conv2 = nn.GINConv(
-            nn.Sequential(
-                nn.Linear(self.hidden_dim, self.hidden_dim),
-                nn.Relu(),
-                nn.Linear(self.hidden_dim, self.hidden_dim),
-            )
+        self.conv2 = GINConv(
+            nn=nn.Sequential(nn.Linear(32, 32), F.relu(), nn.Linear(32, 32))
         )
-        self.bn2 = torch.nn.BatchNorm1d(self.hidden_dim)
+        self.bn2 = nn.BatchNorm1d(32)
 
-        self.conv3 = nn.GINConv(
-            nn.Sequential(
-                nn.Linear(self.hidden_dim, self.hidden_dim),
-                nn.Relu(),
-                nn.Linear(self.hidden_dim, self.hidden_dim),
-            )
+        self.conv3 = GINConv(
+            nn=nn.Sequential(nn.Linear(32, 32), F.relu(), nn.Linear(32, 32))
         )
-        self.bn3 = torch.nn.BatchNorm1d(self.hidden_dim)
+        self.bn3 = nn.BatchNorm1d(32)
 
-        self.conv4 = nn.GINConv(
-            nn.Sequential(
-                nn.Linear(self.hidden_dim, self.hidden_dim),
-                nn.Relu(),
-                nn.Linear(self.hidden_dim, self.hidden_dim),
-            )
+        self.conv4 = GINConv(
+            nn=nn.Sequential(nn.Linear(32, 32), F.relu(), nn.Linear(32, 32))
         )
-        self.bn4 = torch.nn.BatchNorm1d(self.hidden_dim)
+        self.bn4 = nn.BatchNorm1d(32)
 
-        self.conv5 = nn.GINConv(
-            nn.Sequential(
-                nn.Linear(self.hidden_dim, self.hidden_dim),
-                nn.Relu(),
-                nn.Linear(self.hidden_dim, self.hidden_dim),
-            )
+        self.conv5 = GINConv(
+            nn=nn.Sequential(nn.Linear(32, 32), F.relu(), nn.Linear(32, 32))
         )
-        self.bn5 = torch.nn.BatchNorm1d(self.hidden_dim)
+        self.bn5 = nn.BatchNorm1d(32)
 
-        # Final nn.Linear layer for processing nn.GINConv output
-        self.fc1_xd = nn.Linear(self.hidden_dim, output_dim)
-
-        # Combined layers for final prediction
-        self.fc1 = nn.Linear(
-            2 * output_dim, 1024
-        )  # Combined feature dimension after concatenation
-        self.fc2 = nn.Linear(1024, 256)
-        self.out = nn.Linear(256, self.n_output)
+        self.fc1_xd = nn.Linear(32, output_dim)
 
     def forward(self, data):
         x, edge_index, batch = data.x, data.edge_index, data.batch
-        target = data.target
 
-        # nn.GINConv layers with nn.Relu activation and dropout
+        # GIN layers
         x = F.relu(self.conv1(x, edge_index))
         x = self.bn1(x)
-        x = self.dropout(x, training=self.training)
-
         x = F.relu(self.conv2(x, edge_index))
         x = self.bn2(x)
-        x = self.dropout(x, training=self.training)
-
         x = F.relu(self.conv3(x, edge_index))
         x = self.bn3(x)
-        x = self.dropout(x, training=self.training)
-
         x = F.relu(self.conv4(x, edge_index))
         x = self.bn4(x)
-        x = self.dropout(x, training=self.training)
-
         x = F.relu(self.conv5(x, edge_index))
         x = self.bn5(x)
-        x = global_add_pool(x, batch)  # Use global add pool for nn.GINConv
+        x = global_add_pool(x, batch)
         x = F.relu(self.fc1_xd(x))
-        x = F.dropout(x, p=0.2, training=self.training)
+        x = F.dropout(x, p=self.dropout, training=self.training)
 
-        # Inherit protein sequence processing from BaseDrugTargetModel
-        xt = self.process_protein_sequence(target)
-
-        # Combine features
-        xc = torch.cat((x, xt), dim=1)  # Concatenate drug and protein features
-
-        # Final layers for prediction
-        xc = F.relu(self.fc1(xc))
-        xc = F.dropout(xc, p=0.5, training=self.training)
-        xc = self.fc2(xc)
-        xc = F.dropout(xc, p=0.5, training=self.training)
-        output = self.out(xc)
-
-        return output
+        return x

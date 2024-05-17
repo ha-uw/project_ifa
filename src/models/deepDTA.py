@@ -4,24 +4,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from src.utils.data_utils import concord_index
+from data.processing import concord_index
 
 
 # Encoder
 class CNNEncoder(nn.Module):
-    """
-    The DeepDTA's CNN encoder module, which comprises three 1D-convolutional layers and one max-pooling layer.
-    The module is applied to encoding drug/target sequence information, and the input should be transformed information
-    with integer/label encoding. The original paper is `"DeepDTA: deep drug–target binding affinity prediction"
-    <https://academic.oup.com/bioinformatics/article/34/17/i821/5093245>`_ .
-
-    Args:
-        num_embeddings (int): Number of embedding labels/categories, depends on the types of encoding sequence.
-        embedding_dim (int): Dimension of embedding labels/categories.
-        sequence_length (int): Max length of input sequence.
-        num_kernels (int): Number of kernels (filters).
-        kernel_length (int): Length of kernel (filter).
-    """
+    """ """
 
     def __init__(
         self, num_embeddings, embedding_dim, sequence_length, num_kernels, kernel_length
@@ -91,19 +79,22 @@ class MLPDecoder(nn.Module):
             self.dropout = nn.Dropout(dropout_rate)
 
     def forward(self, x):
-        x = F.relu(self.fc1(x))
+        x = self.fc1(x)
+        x = F.relu(x)
         x = self.dropout(x)
         x = self.fc2(x)
 
         if self.include_decoder_layers:
-            x = self.dropout(F.relu(x))
-            x = F.relu(self.fc3(x))
+            x = F.relu(x)
+            x = self.dropout(x)
+            x = self.fc3(x)
+            x = F.relu(x)
             x = self.fc4(x)
 
         return x
 
 
-# Trainer
+# Trainer ----------------------------------------------------------------------
 class BaseDTATrainer(pl.LightningModule):
     """
     Base class for all drug target encoder-decoder architecture models, which is based on pytorch lightning wrapper,
@@ -196,6 +187,45 @@ class DeepDTATrainer(BaseDTATrainer):
 
     def __init__(
         self, drug_encoder, target_encoder, decoder, lr=0.001, ci_metric=False, **kwargs
+    ):
+        super().__init__(drug_encoder, target_encoder, decoder, lr, ci_metric, **kwargs)
+
+    def forward(self, x_drug, x_target):
+        """
+        Forward propagation in DeepDTA architecture.
+
+        Args:
+            x_drug: drug sequence encoding.
+            x_target: target protein sequence encoding.
+        """
+        drug_emb = self.drug_encoder(x_drug)
+        target_emb = self.target_encoder(x_target)
+        comb_emb = torch.cat((drug_emb, target_emb), dim=1)
+        output = self.decoder(comb_emb)
+        return output
+
+    def validation_step(self, valid_batch, batch_idx):
+        x_drug, x_target, y = valid_batch
+        y_pred = self(x_drug, x_target)
+        loss = F.mse_loss(y_pred, y.view(-1, 1))
+        if self.ci_metric:
+            ci = concord_index(y, y_pred)
+            self.log("valid_ci", ci, on_epoch=True, on_step=False)
+        self.log("valid_loss", loss, on_epoch=True, on_step=False)
+        return loss
+
+
+class GraphDTATrainer(BaseDTATrainer):
+    """"""
+
+    def __init__(
+        self,
+        drug_encoder,
+        target_encoder,
+        decoder,
+        lr=0.0005,
+        ci_metric=False,
+        **kwargs
     ):
         super().__init__(drug_encoder, target_encoder, decoder, lr, ci_metric, **kwargs)
 

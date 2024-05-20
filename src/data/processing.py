@@ -13,8 +13,6 @@ from .constants import Tokens, AtomFeatures
 
 
 # Functions --------------------------------------------------------------------
-
-
 def one_hot_encode(x, allowable_set):
     if x not in allowable_set:
         logging.warning(f"Input {x} not in allowable set {allowable_set}.")
@@ -58,16 +56,7 @@ def get_atom_features(atom):
 
 
 def smile_to_graph(smiles):
-    """
-    Convert a SMILES string to a graph representation.
-
-    Args:
-        smiles (str): SMILES string.
-
-    Returns:
-        tuple: Tuple containing the number of atoms (c_size), the normalized features of each atom (features),
-        and the edge index (edge_index).
-    """
+    """ """
     mol = Chem.MolFromSmiles(smiles)
     c_size = mol.GetNumAtoms()
 

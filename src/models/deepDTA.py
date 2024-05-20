@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from data.processing import concord_index
+from src.data.evaluation import concordance_index
 
 
 # Encoder
@@ -12,7 +12,12 @@ class CNNEncoder(nn.Module):
     """ """
 
     def __init__(
-        self, num_embeddings, embedding_dim, sequence_length, num_kernels, kernel_length
+        self,
+        num_embeddings,
+        embedding_dim,
+        sequence_length,
+        num_kernels,
+        kernel_length,
     ):
         super(CNNEncoder, self).__init__()
         self.embedding = nn.Embedding(num_embeddings + 1, embedding_dim)
@@ -114,7 +119,7 @@ class BaseDTATrainer(pl.LightningModule):
         self, drug_encoder, target_encoder, decoder, lr=0.001, ci_metric=False, **kwargs
     ):
         super(BaseDTATrainer, self).__init__()
-        self.save_hyperparameters()
+        # self.save_hyperparameters()
         self.lr = lr
         self.ci_metric = ci_metric
         self.drug_encoder = drug_encoder
@@ -142,7 +147,7 @@ class BaseDTATrainer(pl.LightningModule):
         y_pred = self(x_drug, x_target)
         loss = F.mse_loss(y_pred, y.view(-1, 1))
         if self.ci_metric:
-            ci = concord_index(y, y_pred)
+            ci = concordance_index(y, y_pred)
             self.logger.log_metrics({"train_step_ci": ci}, self.global_step)
         self.logger.log_metrics({"train_step_loss": loss}, self.global_step)
         self.log("train_step_loss_2", loss, on_epoch=True, on_step=False, prog_bar=True)
@@ -168,7 +173,7 @@ class BaseDTATrainer(pl.LightningModule):
         y_pred = self(x_drug, x_target)
         loss = F.mse_loss(y_pred, y.view(-1, 1))
         if self.ci_metric:
-            ci = concord_index(y, y_pred)
+            ci = concordance_index(y, y_pred)
             self.log("test_ci", ci, on_epoch=True, on_step=False)
         self.log("test_loss", loss, on_epoch=True, on_step=False, prog_bar=True)
 
@@ -209,7 +214,7 @@ class DeepDTATrainer(BaseDTATrainer):
         y_pred = self(x_drug, x_target)
         loss = F.mse_loss(y_pred, y.view(-1, 1))
         if self.ci_metric:
-            ci = concord_index(y, y_pred)
+            ci = concordance_index(y, y_pred)
             self.log("valid_ci", ci, on_epoch=True, on_step=False)
         self.log("valid_loss", loss, on_epoch=True, on_step=False)
         return loss
@@ -237,7 +242,7 @@ class GraphDTATrainer(BaseDTATrainer):
             x_drug: drug sequence encoding.
             x_target: target protein sequence encoding.
         """
-        drug_emb = self.drug_encoder(x_drug)
+        drug_emb = self.drug_encoder(x_drug)  # HEREEEE
         target_emb = self.target_encoder(x_target)
         comb_emb = torch.cat((drug_emb, target_emb), dim=1)
         output = self.decoder(comb_emb)
@@ -248,7 +253,7 @@ class GraphDTATrainer(BaseDTATrainer):
         y_pred = self(x_drug, x_target)
         loss = F.mse_loss(y_pred, y.view(-1, 1))
         if self.ci_metric:
-            ci = concord_index(y, y_pred)
+            ci = concordance_index(y, y_pred)
             self.log("valid_ci", ci, on_epoch=True, on_step=False)
         self.log("valid_loss", loss, on_epoch=True, on_step=False)
         return loss

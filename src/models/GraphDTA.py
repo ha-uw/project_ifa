@@ -83,7 +83,6 @@ class GAT_GCN(nn.Module):
 
     def forward(self, data):
         x, edge_index, batch = data.x, data.edge_index, data.batch
-        target = data.target
 
         # Graph data processing
         x = self.conv1(x, edge_index)

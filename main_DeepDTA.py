@@ -2,7 +2,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch.utils.data import DataLoader
-from src.data.tdc_datasets import BindingDBDataset
+from src.data.tdc_datasets import TDCDataset
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from torch import set_float32_matmul_precision
 
@@ -35,6 +35,8 @@ drug_filter_length = [4, 6, 8]  # cfg.MODEL.DRUG_FILTER_LENGTH
 target_filter_length = [4, 8, 12]  # cfg.MODEL.TARGET_FILTER_LENGTH
 
 ci_metric = True
+
+output_dim = 96  # num_filters * 3
 
 # ---- decoder hyper-parameter ----
 decoder_in_dim = 192  # cfg.MODEL.MLP_IN_DIM
@@ -112,13 +114,9 @@ def main():
     pl.seed_everything(seed=seed, workers=True)
 
     # ---- set dataset ----
-    train_dataset = BindingDBDataset(
-        name=dataset_name, split="train", path=dataset_path
-    )
-    valid_dataset = BindingDBDataset(
-        name=dataset_name, split="valid", path=dataset_path
-    )
-    test_dataset = BindingDBDataset(name=dataset_name, split="test", path=dataset_path)
+    train_dataset = TDCDataset(name=dataset_name, split="train", path=dataset_path)
+    valid_dataset = TDCDataset(name=dataset_name, split="valid", path=dataset_path)
+    test_dataset = TDCDataset(name=dataset_name, split="test", path=dataset_path)
 
     train_loader = DataLoader(
         dataset=train_dataset, shuffle=True, batch_size=train_batch_size

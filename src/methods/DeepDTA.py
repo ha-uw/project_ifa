@@ -20,117 +20,117 @@ set_float32_matmul_precision("medium")
 
 
 # =============================== Code ==================================
-def load_configs(config_path: str):
-    cl = ConfigLoader()
-    cl.load_config(config_path=config_path)
+class DeedDTA:
+    config: ConfigLoader
 
-    return cl
+    def __init__(self, config_file: str) -> None:
+        self._load_configs(config_file)
 
+    def _load_configs(self, config_path: str):
+        cl = ConfigLoader()
+        cl.load_config(config_path=config_path)
 
-def get_model(config):
-    drug_encoder = CNN(
-        num_embeddings=config.Encoder.Drug.num_embeddings,
-        embedding_dim=config.Encoder.Drug.embedding_dim,
-        sequence_length=config.Encoder.Drug.sequence_length,
-        num_kernels=config.Encoder.Drug.num_filters,
-        kernel_length=config.Encoder.Drug.filter_length,
-    )
+        self.config = cl
 
-    target_encoder = CNN(
-        num_embeddings=config.Encoder.Target.num_embeddings,
-        embedding_dim=config.Encoder.Target.embedding_dim,
-        sequence_length=config.Encoder.Target.sequence_length,
-        num_kernels=config.Encoder.Target.num_filters,
-        kernel_length=config.Encoder.Target.filter_length,
-    )
+    def _make_model(self):
+        drug_encoder = CNN(
+            num_embeddings=self.config.Encoder.Drug.num_embeddings,
+            embedding_dim=self.config.Encoder.Drug.embedding_dim,
+            sequence_length=self.config.Encoder.Drug.sequence_length,
+            num_kernels=self.config.Encoder.Drug.num_filters,
+            kernel_length=self.config.Encoder.Drug.filter_length,
+        )
 
-    decoder = MLP(
-        in_dim=config.Decoder.in_dim,
-        hidden_dim=config.Decoder.hidden_dim,
-        out_dim=config.Decoder.out_dim,
-        dropout_rate=config.Decoder.dropout_rate,
-        include_decoder_layers=config.Decoder.include_decoder_layers,
-    )
+        target_encoder = CNN(
+            num_embeddings=self.config.Encoder.Target.num_embeddings,
+            embedding_dim=self.config.Encoder.Target.embedding_dim,
+            sequence_length=self.config.Encoder.Target.sequence_length,
+            num_kernels=self.config.Encoder.Target.num_filters,
+            kernel_length=self.config.Encoder.Target.filter_length,
+        )
 
-    model = DeepDTATrainer(
-        drug_encoder=drug_encoder,
-        target_encoder=target_encoder,
-        decoder=decoder,
-        lr=config.Trainer.learning_rate,
-        ci_metric=config.Trainer.ci_metric,
-    )
+        decoder = MLP(
+            in_dim=self.config.Decoder.in_dim,
+            hidden_dim=self.config.Decoder.hidden_dim,
+            out_dim=self.config.Decoder.out_dim,
+            dropout_rate=self.config.Decoder.dropout_rate,
+            include_decoder_layers=self.config.Decoder.include_decoder_layers,
+        )
 
-    return model
+        model = DeepDTATrainer(
+            drug_encoder=drug_encoder,
+            target_encoder=target_encoder,
+            decoder=decoder,
+            lr=self.config.Trainer.learning_rate,
+            ci_metric=self.config.Trainer.ci_metric,
+        )
 
+        self.model = model
 
-def main(config_file):
-    config = load_configs(config_file)
+    def train(self):
+        tb_logger = TensorBoardLogger(
+            "outputs",
+            name=self.config.Dataset.name,
+        )
 
-    tb_logger = TensorBoardLogger(
-        "outputs",
-        name=config.Dataset.name,
-    )
+        pl.seed_everything(seed=self.config.General.random_seed, workers=True)
 
-    pl.seed_everything(seed=config.General.random_seed, workers=True)
+        # ---- set dataset ----
+        train_dataset = TDCDataset(
+            name=self.config.Dataset.name, split="train", path=self.config.Dataset.path
+        )
+        valid_dataset = TDCDataset(
+            name=self.config.Dataset.name, split="valid", path=self.config.Dataset.path
+        )
+        test_dataset = TDCDataset(
+            name=self.config.Dataset.name, split="test", path=self.config.Dataset.path
+        )
 
-    # ---- set dataset ----
-    train_dataset = TDCDataset(
-        name=config.Dataset.name, split="train", path=config.Dataset.path
-    )
-    valid_dataset = TDCDataset(
-        name=config.Dataset.name, split="valid", path=config.Dataset.path
-    )
-    test_dataset = TDCDataset(
-        name=config.Dataset.name, split="test", path=config.Dataset.path
-    )
+        train_loader = DataLoader(
+            dataset=train_dataset,
+            shuffle=True,
+            batch_size=self.config.Trainer.train_batch_size,
+        )
+        valid_loader = DataLoader(
+            dataset=valid_dataset,
+            shuffle=True,
+            batch_size=self.config.Trainer.test_batch_size,
+        )
+        test_loader = DataLoader(
+            dataset=test_dataset,
+            shuffle=True,
+            batch_size=self.config.Trainer.test_batch_size,
+        )
 
-    train_loader = DataLoader(
-        dataset=train_dataset,
-        shuffle=True,
-        batch_size=config.Trainer.train_batch_size,
-    )
-    valid_loader = DataLoader(
-        dataset=valid_dataset,
-        shuffle=True,
-        batch_size=config.Trainer.test_batch_size,
-    )
-    test_loader = DataLoader(
-        dataset=test_dataset, shuffle=True, batch_size=config.Trainer.test_batch_size
-    )
+        # ---- set model ----
+        self._make_model()
+        print(self.model)
 
-    # ---- set model ----
-    model = get_model(config)
-    print(model)
+        # ---- training and evaluation ----
+        checkpoint_callback = ModelCheckpoint(
+            filename="{epoch}-{step}-{valid_loss:.4f}", monitor="valid_loss", mode="min"
+        )
+        early_stop_callback = EarlyStopping(
+            monitor="valid_loss",
+            min_delta=self.config.General.min_delta,
+            patience=self.config.General.patience_epochs,
+            verbose=False,
+            mode="min",
+        )
 
-    # ---- training and evaluation ----
-    checkpoint_callback = ModelCheckpoint(
-        filename="{epoch}-{step}-{valid_loss:.4f}", monitor="valid_loss", mode="min"
-    )
-    early_stop_callback = EarlyStopping(
-        monitor="valid_loss",
-        min_delta=config.General.min_delta,
-        patience=config.General.patience_epochs,
-        verbose=False,
-        mode="min",
-    )
+        callbacks = [checkpoint_callback]
 
-    callbacks = [checkpoint_callback]
+        if self.config.General.early_stop:
+            callbacks.append(early_stop_callback)
 
-    if config.General.early_stop:
-        callbacks.append(early_stop_callback)
+        trainer = pl.Trainer(
+            max_epochs=self.config.Trainer.max_epochs,
+            accelerator="auto",
+            devices="auto",
+            logger=tb_logger,
+            callbacks=callbacks,
+            fast_dev_run=self.config.General.fast_dev_run,
+        )
 
-    trainer = pl.Trainer(
-        max_epochs=config.Trainer.max_epochs,
-        accelerator="auto",
-        devices="auto",
-        logger=tb_logger,
-        callbacks=callbacks,
-        fast_dev_run=config.General.fast_dev_run,
-    )
-
-    trainer.fit(model, train_loader, valid_loader)
-    trainer.test(test_loader)
-
-
-if __name__ == "__main__":
-    main()
+        trainer.fit(self.model, train_loader, valid_loader)
+        trainer.test(test_loader)

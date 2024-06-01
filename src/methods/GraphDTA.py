@@ -7,8 +7,8 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from torch import set_float32_matmul_precision
 
 
-from modules.decoders import GAT_GCN, GATNet, GCNNet, GINConvNet
-from modules.encoders import CNNEncoder, MLPDecoder
+from modules.decoders import MLP
+from modules.encoders import CNN, GAT_GCN, GAT, GCN, GIN
 from modules.trainers import GraphDTATrainer
 
 
@@ -59,14 +59,14 @@ fast_dev_run = False
 def get_model():
     model = GraphDTATrainer(
         drug_encoder=GAT_GCN(),
-        target_encoder=CNNEncoder(
+        target_encoder=CNN(
             embedding_dim=EMBED_DIM,
             num_embeddings=NUM_FEATURES_XT,
             kernel_length=KERNEL_SIZE,
             num_kernels=NUM_FILTERS,
             sequence_length=SEQUENCE_LENGTH_XT,
         ),
-        decoder=MLPDecoder(
+        decoder=MLP(
             dropout_rate=DROPOUT,
             hidden_dim=HIDDEN_DIM,
             in_dim=IN_DIM,

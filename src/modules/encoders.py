@@ -1,12 +1,30 @@
+"""
+encoders.py
+
+This module contains the implementation of various encoders used in the project. 
+Encoders are components of a machine learning model that transform the high-dimensional 
+input data into a lower-dimensional representation suitable for processing by the model.
+
+Author: Raul Oliveira
+Date: 01/06/2024
+"""
+
+# Imports ---------------------------------------------------------------
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch_geometric.nn import (
+    GATConv,
+    GCNConv,
+    GINConv,
+    global_add_pool,
+    global_max_pool,
+    global_mean_pool,
+)
 
-# Former DeepDTA
 
-
-# Encoder
-class CNNEncoder(nn.Module):
+# Encoders --------------------------------------------------------------
+class CNN(nn.Module):
     """ """
 
     def __init__(
@@ -17,7 +35,7 @@ class CNNEncoder(nn.Module):
         num_kernels,
         kernel_length,
     ):
-        super(CNNEncoder, self).__init__()
+        super(CNN, self).__init__()
         self.embedding = nn.Embedding(num_embeddings + 1, embedding_dim)
         self.conv1 = nn.Conv1d(
             in_channels=sequence_length,
@@ -46,52 +64,213 @@ class CNNEncoder(nn.Module):
         return x
 
 
-# Decoder
-class MLPDecoder(nn.Module):
-    """
-    A generalized MLP model that can act as either a 2-layer MLPDecoder or a 4-layer MLPDecoder based on the include_decoder_layers parameter.
+# Graph -----------------------------------------------------------------
+# Model parameters
+NUM_FEATURES_XD = 78
+NUM_FEATURES_XT = 25
+num_filters = 32
+EMBED_DIM = 128
+OUTPUT_DIM = 128
+DROPOUT = 0.2
+NUM_HEADS = 10
+KERNEL_SIZE = 8
 
-    Args:
-        in_dim (int): the dimension of input feature.
-        hidden_dim (int): the dimension of hidden layers.
-        out_dim (int): the dimension of output layer.
-        dropout_rate (float): the dropout rate during training.
-        include_decoder_layers (bool): whether or not to include the additional layers that are part of the MLPDecoder
+# GAT_GCN
+conv_xt1_in_channels = 1000
+
+
+class GAT(nn.Module):
+    """
+    Graph Attention Network (GAT) module.
     """
 
     def __init__(
         self,
-        in_dim,
-        hidden_dim,
-        out_dim,
-        dropout_rate=0.1,
-        include_decoder_layers=False,
+        num_features_xd=78,
+        n_output=1,
+        num_filters=32,
+        embed_dim=128,
+        output_dim=128,
+        dropout=0.2,
     ):
-        super(MLPDecoder, self).__init__()
-        self.fc1 = nn.Linear(in_dim, hidden_dim)
-        self.include_decoder_layers = include_decoder_layers
+        super(GAT, self).__init__()
 
-        if self.include_decoder_layers:
-            self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-            self.fc3 = nn.Linear(hidden_dim, out_dim)
-            self.fc4 = nn.Linear(out_dim, 1)
-            torch.nn.init.normal_(self.fc4.weight)
-            self.dropout = nn.Dropout(dropout_rate)
-        else:
-            self.fc2 = nn.Linear(hidden_dim, out_dim)
-            self.dropout = nn.Dropout(dropout_rate)
+        # Graph layers
+        self.gcn1 = GATConv(num_features_xd, num_features_xd, heads=10, dropout=dropout)
+        self.gcn2 = GATConv(num_features_xd * 10, output_dim, dropout=dropout)
+        self.fc_g1 = nn.Linear(output_dim, output_dim)
 
-    def forward(self, x):
-        x = self.fc1(x)
+    def forward(self, data):
+        x, edge_index, batch = data.x, data.edge_index, data.batch
+
+        # Graph data processing
+        x = F.dropout(x, p=0.2, training=self.training)
+        x = F.relu(self.gcn1(x, edge_index))
+        x = F.dropout(x, p=0.2, training=self.training)
+        x = self.gcn2(x, edge_index)
         x = F.relu(x)
-        x = self.dropout(x)
-        x = self.fc2(x)
+        x = global_max_pool(x, batch)
+        x = self.fc_g1(x)
+        x = F.relu(x)
 
-        if self.include_decoder_layers:
-            x = F.relu(x)
-            x = self.dropout(x)
-            x = self.fc3(x)
-            x = F.relu(x)
-            x = self.fc4(x)
+        return x
+
+
+class GAT_GCN(nn.Module):
+    """
+    GAT_GCN is a PyTorch module that implements a Graph Attention Network (GAT)
+    combined with a Graph Convolutional Network (GCN) for graph data processing.
+    """
+
+    def __init__(
+        self,
+        n_output=1,
+        num_features_xd=78,
+        num_features_xt=25,
+        num_filters=32,
+        embed_dim=128,
+        output_dim=128,
+        dropout=0.2,
+    ):
+        super(GAT_GCN, self).__init__()
+
+        self.conv1 = GATConv(
+            num_features_xd, num_features_xd, heads=10, dropout=dropout
+        )
+        self.conv2 = GCNConv(num_features_xd * 10, num_features_xd * 10)
+        self.fc_g1 = nn.Linear(num_features_xd * 10 * 2, 1500)
+        self.fc_g2 = nn.Linear(1500, output_dim)
+
+    def forward(self, data):
+        x, edge_index, batch = data.x, data.edge_index, data.batch
+
+        # Graph data processing
+        x = self.conv1(x, edge_index)
+        x = F.relu(x)
+        x = self.conv2(x, edge_index)
+        x = F.relu(x)
+        x = torch.cat([global_mean_pool(x, batch), global_add_pool(x, batch)], dim=1)
+        x = self.fc_g1(x)
+        x = F.relu(x)
+        x = F.dropout(x)
+        x = self.fc_g2(x)
+
+        return x
+
+
+class GCN(nn.Module):
+    """
+    Graph Convolutional Network (GCN) module.
+    """
+
+    def __init__(
+        self,
+        n_output=1,
+        num_filters=32,
+        embed_dim=128,
+        num_features_xd=78,
+        num_features_xt=25,
+        output_dim=128,
+        dropout=0.2,
+    ):
+        super(GCN, self).__init__()
+        self.n_output = n_output
+
+        # GCN layers for graph data (representing molecules)
+        self.conv1 = GCNConv(num_features_xd, num_features_xd, dropout=dropout)
+        self.conv2 = GCNConv(num_features_xd, num_features_xd * 2, dropout=dropout)
+        self.conv3 = GCNConv(num_features_xd * 2, num_features_xd * 4, dropout=dropout)
+
+        # nn.Linear layers for processing graph data after GCN convolutions
+        self.fc_g1 = nn.Linear(num_features_xd * 4, 1024)
+        self.fc_g2 = nn.Linear(1024, output_dim)
+
+    def forward(self, data):
+        x, edge_index, batch = data.x, data.edge_index, data.batch
+        target = data.target
+
+        # Graph data processing with GCN layers
+        x = self.conv1(x, edge_index)
+        x = F.relu(x)
+        x = self.conv2(x, edge_index)
+        x = F.relu(x)
+        x = self.conv3(x, edge_index)
+        x = F.relu(x)
+        x = global_max_pool(x, batch)
+
+        # Flatten
+        x = self.fc_g1(x)
+        x = F.relu(x)
+        x = F.dropout(x)
+        x = self.fc_g2(x)
+        x = F.dropout(x)
+
+        return x
+
+
+class GIN(nn.Module):
+    """
+    Graph Isomorphism Network (GIN) Convolutional Neural Network.
+    """
+
+    def __init__(
+        self,
+        n_output=1,
+        num_features_xd=78,
+        n_filters=32,
+        embed_dim=128,
+        output_dim=128,
+        dropout=0.2,
+    ):
+        super().__init__()
+        self.n_output = n_output
+
+        # GIN layers
+        self.conv1 = GINConv(
+            nn=nn.Sequential(
+                nn.Linear(num_features_xd, 32), F.relu(), nn.Linear(32, 32)
+            )
+        )
+        self.bn1 = nn.BatchNorm1d(32)
+
+        self.conv2 = GINConv(
+            nn=nn.Sequential(nn.Linear(32, 32), F.relu(), nn.Linear(32, 32))
+        )
+        self.bn2 = nn.BatchNorm1d(32)
+
+        self.conv3 = GINConv(
+            nn=nn.Sequential(nn.Linear(32, 32), F.relu(), nn.Linear(32, 32))
+        )
+        self.bn3 = nn.BatchNorm1d(32)
+
+        self.conv4 = GINConv(
+            nn=nn.Sequential(nn.Linear(32, 32), F.relu(), nn.Linear(32, 32))
+        )
+        self.bn4 = nn.BatchNorm1d(32)
+
+        self.conv5 = GINConv(
+            nn=nn.Sequential(nn.Linear(32, 32), F.relu(), nn.Linear(32, 32))
+        )
+        self.bn5 = nn.BatchNorm1d(32)
+
+        self.fc1_xd = nn.Linear(32, output_dim)
+
+    def forward(self, data):
+        x, edge_index, batch = data.x, data.edge_index, data.batch
+
+        # GIN layers
+        x = F.relu(self.conv1(x, edge_index))
+        x = self.bn1(x)
+        x = F.relu(self.conv2(x, edge_index))
+        x = self.bn2(x)
+        x = F.relu(self.conv3(x, edge_index))
+        x = self.bn3(x)
+        x = F.relu(self.conv4(x, edge_index))
+        x = self.bn4(x)
+        x = F.relu(self.conv5(x, edge_index))
+        x = self.bn5(x)
+        x = global_add_pool(x, batch)
+        x = F.relu(self.fc1_xd(x))
+        x = F.dropout(x, p=self.dropout, training=self.training)
 
         return x

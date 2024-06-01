@@ -1,7 +1,7 @@
 import numpy as np
 from math import sqrt
 from scipy import stats
-from lifelines.utils import concordance_index as ci
+import torch
 
 
 # TODO I probably can get these dutring train. check check check
@@ -27,19 +27,46 @@ def spearman(y, y_pred):
 
 def concordance_index(y, y_pred):
     """
-    Calculate the concordance index (CI) between the true labels (y) and the predicted labels (y_pred).
+    Calculate the concordance index (ci) between true labels and predicted scores using vectorized operations.
 
-    The concordance index is a measure of how well the predicted labels rank the samples compared to the true labels.
-    It ranges from 0 to 1, where 0 indicates no concordance and 1 indicates perfect concordance.
-
-    Parameters:
-        y (array-like): The true labels.
-        y_pred (array-like): The predicted labels.
+    Args:
+        y (torch.Tensor): True labels.
+        y_pred (torch.Tensor): Predicted scores.
 
     Returns:
-        float: The concordance index.
-
+        float: Concordance index.
     """
-    concordance_index = ci(y, y_pred)
+    # Ensure the inputs are tensors
+    if not isinstance(y, torch.Tensor):
+        y = torch.tensor(y, dtype=torch.float32)
+    if not isinstance(y_pred, torch.Tensor):
+        y_pred = torch.tensor(y_pred, dtype=torch.float32)
 
-    return concordance_index
+    # Ensure y and y_pred are 1-dimensional
+    y = y.view(-1)
+    y_pred = y_pred.view(-1)
+
+    # Create pairwise comparison matrices
+    diff_true = y.unsqueeze(0) - y.unsqueeze(1)
+    diff_pred = y_pred.unsqueeze(0) - y_pred.unsqueeze(1)
+
+    # Mask to ignore pairs with the same true values
+    non_equal_mask = diff_true != 0
+
+    # Calculate concordant pairs
+    concordant = ((diff_pred > 0) == (diff_true > 0)).float()
+    concordant.add_((diff_pred == 0).float() * 0.5)  # Handling ties in predictions
+
+    # Apply the non_equal_mask
+    concordant.mul_(non_equal_mask.float())
+
+    # Count permissible pairs and concordant pairs
+    permissible = non_equal_mask.float().sum().item()
+    concordant = concordant.sum().item()
+
+    # Avoid zero division
+    if permissible == 0:
+        return 0.0
+
+    # Calculate and return ci
+    return concordant / permissible

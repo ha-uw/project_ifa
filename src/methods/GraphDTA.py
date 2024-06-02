@@ -1,144 +1,183 @@
+import torch
+import torch.nn.functional as F
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch_geometric.data.lightning import LightningDataset
-from data.loading import TDCDataset
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
-from torch import set_float32_matmul_precision
 
-
+from .configs import ConfigLoader
+from data.loading import TDCDataset
 from modules.decoders import MLP
 from modules.encoders import CNN, GAT_GCN, GAT, GCN, GIN
-from modules.trainers import GraphDTATrainer
+from modules.trainers import BaseDTATrainer
+from data.evaluation import concordance_index
 
-
-# ============================== Configs ================================
-set_float32_matmul_precision("medium")
-
-dataset_path = "./data"
-dataset_name = "DAVIS"
-
-ci_metric = False
-
-# ------------ sorver --------------
-seed = 42
-
-BATCH_SIZE = 512
-
-min_epochs = 0
-max_epochs = 1000
-
-lr = 0.0005
-
-# Model parameters
-NUM_FEATURES_XD = 78
-NUM_FEATURES_XT = 25
-SEQUENCE_LENGTH_XT = 1200
-NUM_FILTERS = 32
-EMBED_DIM = 128
-OUTPUT_DIM = 128
-DROPOUT = 0.2
-NUM_HEADS = 10
-KERNEL_SIZE = [8, 8, 8]
-
-# Decoder
-HIDDEN_DIM = 1024
-IN_DIM = 224
-DECOD_OUT_DIM = 1
-
-# ------------ early stop ------------------
-early_stop = False
-min_delta = 0.001
-patience = 20
-
-fast_dev_run = False
 
 # =============================== Code ==================================
+class GraphDTA:
+    def __init__(self, config_file: str) -> None:
+        self.graphdta = _GraphDTA(config_file)
+
+    def make_model(self):
+        self.graphdta.make_model()
+
+    def train(self):
+        self.graphdta.train()
+
+    def predict(self):
+        raise NotImplementedError
 
 
-def get_model():
-    model = GraphDTATrainer(
-        drug_encoder=GAT_GCN(),
-        target_encoder=CNN(
-            embedding_dim=EMBED_DIM,
-            num_embeddings=NUM_FEATURES_XT,
-            kernel_length=KERNEL_SIZE,
-            num_kernels=NUM_FILTERS,
-            sequence_length=SEQUENCE_LENGTH_XT,
-        ),
-        decoder=MLP(
-            dropout_rate=DROPOUT,
-            hidden_dim=HIDDEN_DIM,
-            in_dim=IN_DIM,
-            include_decoder_layers=False,
-            out_dim=DECOD_OUT_DIM,
-        ),
-        lr=lr,
-        ci_metric=ci_metric,
-    )
+class _GraphDTATrainer(BaseDTATrainer):
+    """"""
 
-    return model
+    def __init__(self, drug_encoder, target_encoder, decoder, lr, ci_metric, **kwargs):
+        super().__init__(drug_encoder, target_encoder, decoder, lr, ci_metric, **kwargs)
 
+    def forward(self, x_drug, x_target):
+        """
+        Forward propagation in DeepDTA architecture.
 
-def main():
-    tb_logger = TensorBoardLogger(
-        "outputs",
-        name=dataset_name + "_GraphDTA",
-    )
+        Args:
+            x_drug: drug sequence encoding.
+            x_target: target protein sequence encoding.
+        """
+        drug_emb = self.drug_encoder(x_drug)
+        target_emb = self.target_encoder(x_target)
+        comb_emb = torch.cat((drug_emb, target_emb), dim=1)
 
-    pl.seed_everything(seed=seed, workers=True)
+        output = self.decoder(comb_emb)
 
-    # ---- set dataset ----
-    train_dataset = TDCDataset(
-        name=dataset_name, split="train", path=dataset_path, mode_drug="gcn"
-    )
-    valid_dataset = TDCDataset(
-        name=dataset_name, split="valid", path=dataset_path, mode_drug="gcn"
-    )
-    test_dataset = TDCDataset(
-        name=dataset_name, split="test", path=dataset_path, mode_drug="gcn"
-    )
+        return output
 
-    pl_dataset = LightningDataset(
-        train_dataset, valid_dataset, test_dataset, batch_size=BATCH_SIZE
-    )
+    def validation_step(self, valid_batch, batch_idx):
+        x_drug, x_target, y = valid_batch
+        y_pred = self(x_drug, x_target)
+        loss = F.mse_loss(y_pred, y.view(-1, 1))
 
-    train_loader = pl_dataset.train_dataloader()
-    valid_loader = pl_dataset.val_dataloader()
-    test_loader = pl_dataset.test_dataloader()
+        if self.ci_metric:
+            ci = concordance_index(y, y_pred)
+            self.log("valid_ci", ci, on_epoch=True, on_step=False)
+        self.log("valid_loss", loss, on_epoch=True, on_step=False)
 
-    # ---- set model ----
-    model = get_model()
-    print(model)
-
-    # ---- training and evaluation ----
-    checkpoint_callback = ModelCheckpoint(
-        filename="{epoch}-{step}-{valid_loss:.4f}", monitor="valid_loss", mode="min"
-    )
-    early_stop_callback = EarlyStopping(
-        monitor="valid_loss",
-        min_delta=min_delta,
-        patience=patience,
-        verbose=False,
-        mode="min",
-    )
-
-    callbacks = [checkpoint_callback]
-
-    if early_stop:
-        callbacks.append(early_stop_callback)
-
-    trainer = pl.Trainer(
-        max_epochs=max_epochs,
-        accelerator="auto",
-        devices="auto",
-        logger=tb_logger,
-        callbacks=callbacks,
-        fast_dev_run=fast_dev_run,
-    )
-    trainer.fit(model, train_dataloaders=train_loader, val_dataloaders=valid_loader)
-    trainer.test(dataloaders=test_loader)
+        return loss
 
 
-if __name__ == "__main__":
-    main()
+class _GraphDTA:
+    config: ConfigLoader
+
+    def __init__(self, config_file: str) -> None:
+        self._load_configs(config_file)
+
+    def _load_configs(self, config_path: str):
+        cl = ConfigLoader()
+        cl.load_config(config_path=config_path)
+
+        self.config = cl
+
+    def make_model(self):
+        drug_encoder = GAT_GCN(
+            input_dim=self.config.Encoder.GAT_GCN.input_dim,
+            num_heads=self.config.Encoder.GAT_GCN.num_heads,
+            output_dim=self.config.Encoder.GAT_GCN.output_dim,
+        )
+        target_encoder = CNN(
+            embedding_dim=self.config.Encoder.Target.embedding_dim,
+            num_embeddings=self.config.Encoder.Target.num_embeddings,
+            filter_length=self.config.Encoder.Target.filter_length,
+            num_filters=self.config.Encoder.Target.num_filters,
+            sequence_length=self.config.Encoder.Target.sequence_length,
+        )
+        decoder = MLP(
+            dropout_rate=self.config.Decoder.dropout_rate,
+            hidden_dim=self.config.Decoder.hidden_dim,
+            in_dim=self.config.Decoder.in_dim,
+            include_decoder_layers=self.config.Decoder.include_decoder_layers,
+            out_dim=self.config.Decoder.out_dim,
+        )
+        model = _GraphDTATrainer(
+            drug_encoder=drug_encoder,
+            target_encoder=target_encoder,
+            decoder=decoder,
+            lr=self.config.Trainer.learning_rate,
+            ci_metric=self.config.Trainer.ci_metric,
+        )
+
+        print(model)
+        self.model = model
+
+    def train(self):
+        tb_logger = TensorBoardLogger(
+            "outputs",
+            name=self.config.Dataset.name + "_GraphDTA",
+        )
+
+        pl.seed_everything(seed=self.config.General.random_seed, workers=True)
+
+        # ---- set dataset ----
+        train_dataset = TDCDataset(
+            name=self.config.Dataset.name,
+            split="train",
+            path=self.config.Dataset.path,
+            mode_drug="gcn",
+        )
+        valid_dataset = TDCDataset(
+            name=self.config.Dataset.name,
+            split="valid",
+            path=self.config.Dataset.path,
+            mode_drug="gcn",
+        )
+        test_dataset = TDCDataset(
+            name=self.config.Dataset.name,
+            split="test",
+            path=self.config.Dataset.path,
+            mode_drug="gcn",
+        )
+
+        pl_dataset = LightningDataset(
+            train_dataset,
+            valid_dataset,
+            test_dataset,
+            batch_size=self.config.Trainer.train_batch_size,
+        )
+
+        train_loader = pl_dataset.train_dataloader()
+        valid_loader = pl_dataset.val_dataloader()
+        test_loader = pl_dataset.test_dataloader()
+
+        # ---- set model ----
+        if not hasattr(self, "model") or self.model is None:
+            self.make_model()
+
+        # ---- training and evaluation ----
+        checkpoint_callback = ModelCheckpoint(
+            filename="{epoch}-{step}-{valid_loss:.4f}", monitor="valid_loss", mode="min"
+        )
+        early_stop_callback = EarlyStopping(
+            monitor="valid_loss",
+            min_delta=self.config.General.min_delta,
+            patience=self.config.General.patience_epochs,
+            verbose=False,
+            mode="min",
+        )
+
+        callbacks = [checkpoint_callback]
+
+        if self.config.General.early_stop:
+            callbacks.append(early_stop_callback)
+
+        trainer = pl.Trainer(
+            max_epochs=self.config.Trainer.max_epochs,
+            accelerator="auto",
+            devices="auto",
+            logger=tb_logger,
+            callbacks=callbacks,
+            fast_dev_run=self.config.General.fast_dev_run,
+        )
+
+        trainer.fit(self.model, train_loader, valid_loader)
+        trainer.test(
+            self.model,
+            test_loader,
+        )

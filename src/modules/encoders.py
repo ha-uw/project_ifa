@@ -13,44 +13,41 @@ Date: 01/06/2024
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_geometric.nn import (
-    GATConv,
-    GCNConv,
-    GINConv,
-    global_add_pool,
-    global_max_pool,
-    global_mean_pool,
-)
+from torch_geometric.nn import GATConv, GCNConv, GINConv
+from torch_geometric.nn import global_add_pool, global_max_pool, global_mean_pool
 
 
 # Encoders --------------------------------------------------------------
 class CNN(nn.Module):
-    """ """
+    """
+    Convolutional Neural Network (CNN) encoder.
+    This encoder uses an embedding layer followed by three convolutional layers and a global max pooling layer.
+    """
 
     def __init__(
         self,
         num_embeddings,
         embedding_dim,
         sequence_length,
-        num_kernels,
-        kernel_length,
+        num_filters,
+        filter_length,
     ):
         super(CNN, self).__init__()
         self.embedding = nn.Embedding(num_embeddings + 1, embedding_dim)
         self.conv1 = nn.Conv1d(
             in_channels=sequence_length,
-            out_channels=num_kernels,
-            kernel_size=kernel_length[0],
+            out_channels=num_filters,
+            kernel_size=filter_length[0],
         )
         self.conv2 = nn.Conv1d(
-            in_channels=num_kernels,
-            out_channels=num_kernels * 2,
-            kernel_size=kernel_length[1],
+            in_channels=num_filters,
+            out_channels=num_filters * 2,
+            kernel_size=filter_length[1],
         )
         self.conv3 = nn.Conv1d(
-            in_channels=num_kernels * 2,
-            out_channels=num_kernels * 3,
-            kernel_size=kernel_length[2],
+            in_channels=num_filters * 2,
+            out_channels=num_filters * 3,
+            kernel_size=filter_length[2],
         )
         self.global_max_pool = nn.AdaptiveMaxPool1d(output_size=1)
 
@@ -65,20 +62,6 @@ class CNN(nn.Module):
 
 
 # Graph -----------------------------------------------------------------
-# Model parameters
-NUM_FEATURES_XD = 78
-NUM_FEATURES_XT = 25
-num_filters = 32
-EMBED_DIM = 128
-OUTPUT_DIM = 128
-DROPOUT = 0.2
-NUM_HEADS = 10
-KERNEL_SIZE = 8
-
-# GAT_GCN
-conv_xt1_in_channels = 1000
-
-
 class GAT(nn.Module):
     """
     Graph Attention Network (GAT) module.
@@ -86,31 +69,32 @@ class GAT(nn.Module):
 
     def __init__(
         self,
-        num_features_xd=78,
-        n_output=1,
-        num_filters=32,
-        embed_dim=128,
+        input_dim=78,
+        num_heads=10,
         output_dim=128,
-        dropout=0.2,
+        dropout_rate=0.2,
     ):
         super(GAT, self).__init__()
 
         # Graph layers
-        self.gcn1 = GATConv(num_features_xd, num_features_xd, heads=10, dropout=dropout)
-        self.gcn2 = GATConv(num_features_xd * 10, output_dim, dropout=dropout)
-        self.fc_g1 = nn.Linear(output_dim, output_dim)
+        self.conv1 = GATConv(
+            input_dim, input_dim, heads=num_heads, dropout=dropout_rate
+        )
+        self.conv2 = GATConv(input_dim * num_heads, output_dim, dropout=dropout_rate)
+        self.fc = nn.Linear(output_dim, output_dim)
+        self.dropout_rate = dropout_rate
 
     def forward(self, data):
         x, edge_index, batch = data.x, data.edge_index, data.batch
 
         # Graph data processing
-        x = F.dropout(x, p=0.2, training=self.training)
-        x = F.relu(self.gcn1(x, edge_index))
-        x = F.dropout(x, p=0.2, training=self.training)
-        x = self.gcn2(x, edge_index)
+        x = F.dropout(x, p=self.dropout_rate, training=self.training)
+        x = F.relu(self.conv1(x, edge_index))
+        x = F.dropout(x, p=self.dropout_rate, training=self.training)
+        x = self.conv2(x, edge_index)
         x = F.relu(x)
         x = global_max_pool(x, batch)
-        x = self.fc_g1(x)
+        x = self.fc(x)
         x = F.relu(x)
 
         return x
@@ -124,22 +108,18 @@ class GAT_GCN(nn.Module):
 
     def __init__(
         self,
-        n_output=1,
-        num_features_xd=78,
-        num_features_xt=25,
-        num_filters=32,
-        embed_dim=128,
+        input_dim=78,
+        num_heads=32,
         output_dim=128,
-        dropout=0.2,
+        dropout_rate=0.2,
     ):
         super(GAT_GCN, self).__init__()
 
         self.conv1 = GATConv(
-            num_features_xd, num_features_xd, heads=10, dropout=dropout
+            input_dim, input_dim, heads=num_heads, dropout=dropout_rate
         )
-        self.conv2 = GCNConv(num_features_xd * 10, num_features_xd * 10)
-        self.fc_g1 = nn.Linear(num_features_xd * 10 * 2, 1500)
-        self.fc_g2 = nn.Linear(1500, output_dim)
+        self.conv2 = GCNConv(input_dim * num_heads, input_dim * num_heads)
+        self.fc = nn.Linear(input_dim * num_heads * 2, output_dim)
 
     def forward(self, data):
         x, edge_index, batch = data.x, data.edge_index, data.batch
@@ -150,10 +130,9 @@ class GAT_GCN(nn.Module):
         x = self.conv2(x, edge_index)
         x = F.relu(x)
         x = torch.cat([global_mean_pool(x, batch), global_add_pool(x, batch)], dim=1)
-        x = self.fc_g1(x)
+        x = self.fc(x)
         x = F.relu(x)
-        x = F.dropout(x)
-        x = self.fc_g2(x)
+        x = F.dropout(x, training=self.training)
 
         return x
 
@@ -165,29 +144,23 @@ class GCN(nn.Module):
 
     def __init__(
         self,
-        n_output=1,
-        num_filters=32,
-        embed_dim=128,
-        num_features_xd=78,
-        num_features_xt=25,
+        input_dim=78,
         output_dim=128,
-        dropout=0.2,
+        dropout_rate=0.2,
     ):
         super(GCN, self).__init__()
-        self.n_output = n_output
 
         # GCN layers for graph data (representing molecules)
-        self.conv1 = GCNConv(num_features_xd, num_features_xd, dropout=dropout)
-        self.conv2 = GCNConv(num_features_xd, num_features_xd * 2, dropout=dropout)
-        self.conv3 = GCNConv(num_features_xd * 2, num_features_xd * 4, dropout=dropout)
+        self.conv1 = GCNConv(input_dim, input_dim, dropout=dropout_rate)
+        self.conv2 = GCNConv(input_dim, input_dim * 2, dropout=dropout_rate)
+        self.conv3 = GCNConv(input_dim * 2, input_dim * 4, dropout=dropout_rate)
 
         # nn.Linear layers for processing graph data after GCN convolutions
-        self.fc_g1 = nn.Linear(num_features_xd * 4, 1024)
-        self.fc_g2 = nn.Linear(1024, output_dim)
+        self.fc1 = nn.Linear(input_dim * 4, 1024)
+        self.fc2 = nn.Linear(1024, output_dim)
 
     def forward(self, data):
         x, edge_index, batch = data.x, data.edge_index, data.batch
-        target = data.target
 
         # Graph data processing with GCN layers
         x = self.conv1(x, edge_index)
@@ -199,11 +172,11 @@ class GCN(nn.Module):
         x = global_max_pool(x, batch)
 
         # Flatten
-        x = self.fc_g1(x)
+        x = self.fc1(x)
         x = F.relu(x)
-        x = F.dropout(x)
-        x = self.fc_g2(x)
-        x = F.dropout(x)
+        x = F.dropout(x, training=self.training)
+        x = self.fc2(x)
+        x = F.dropout(x, training=self.training)
 
         return x
 
@@ -215,45 +188,61 @@ class GIN(nn.Module):
 
     def __init__(
         self,
-        n_output=1,
-        num_features_xd=78,
-        n_filters=32,
-        embed_dim=128,
+        input_dim=78,
+        num_filters=32,
         output_dim=128,
-        dropout=0.2,
+        dropout_rate=0.2,
     ):
         super().__init__()
-        self.n_output = n_output
 
         # GIN layers
         self.conv1 = GINConv(
             nn=nn.Sequential(
-                nn.Linear(num_features_xd, 32), F.relu(), nn.Linear(32, 32)
+                nn.Linear(input_dim, num_filters),
+                F.relu(),
+                nn.Linear(num_filters, num_filters),
             )
         )
-        self.bn1 = nn.BatchNorm1d(32)
+        self.bn1 = nn.BatchNorm1d(num_filters)
 
         self.conv2 = GINConv(
-            nn=nn.Sequential(nn.Linear(32, 32), F.relu(), nn.Linear(32, 32))
+            nn=nn.Sequential(
+                nn.Linear(num_filters, num_filters),
+                F.relu(),
+                nn.Linear(num_filters, num_filters),
+            )
         )
-        self.bn2 = nn.BatchNorm1d(32)
+        self.bn2 = nn.BatchNorm1d(num_filters)
 
         self.conv3 = GINConv(
-            nn=nn.Sequential(nn.Linear(32, 32), F.relu(), nn.Linear(32, 32))
+            nn=nn.Sequential(
+                nn.Linear(num_filters, num_filters),
+                F.relu(),
+                nn.Linear(num_filters, num_filters),
+            )
         )
-        self.bn3 = nn.BatchNorm1d(32)
+        self.bn3 = nn.BatchNorm1d(num_filters)
 
         self.conv4 = GINConv(
-            nn=nn.Sequential(nn.Linear(32, 32), F.relu(), nn.Linear(32, 32))
+            nn=nn.Sequential(
+                nn.Linear(num_filters, num_filters),
+                F.relu(),
+                nn.Linear(num_filters, num_filters),
+            )
         )
-        self.bn4 = nn.BatchNorm1d(32)
+        self.bn4 = nn.BatchNorm1d(num_filters)
 
         self.conv5 = GINConv(
-            nn=nn.Sequential(nn.Linear(32, 32), F.relu(), nn.Linear(32, 32))
+            nn=nn.Sequential(
+                nn.Linear(num_filters, num_filters),
+                F.relu(),
+                nn.Linear(num_filters, num_filters),
+            )
         )
-        self.bn5 = nn.BatchNorm1d(32)
+        self.bn5 = nn.BatchNorm1d(num_filters)
 
-        self.fc1_xd = nn.Linear(32, output_dim)
+        self.fc1 = nn.Linear(num_filters, output_dim)
+        self.dropout_rate = dropout_rate
 
     def forward(self, data):
         x, edge_index, batch = data.x, data.edge_index, data.batch
@@ -270,7 +259,7 @@ class GIN(nn.Module):
         x = F.relu(self.conv5(x, edge_index))
         x = self.bn5(x)
         x = global_add_pool(x, batch)
-        x = F.relu(self.fc1_xd(x))
-        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = F.relu(self.fc1(x))
+        x = F.dropout(x, p=self.dropout_rate, training=self.training)
 
         return x

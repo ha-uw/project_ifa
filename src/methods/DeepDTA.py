@@ -14,12 +14,6 @@ from modules.trainers import BaseDTATrainer
 from data.evaluation import concordance_index
 
 
-# ============================== Configs ================================
-from torch import set_float32_matmul_precision
-
-set_float32_matmul_precision("medium")
-
-
 # =============================== Code ==================================
 class DeepDTA:
     def __init__(self, config_file: str) -> None:
@@ -87,16 +81,16 @@ class _DeepDTA:
             num_embeddings=self.config.Encoder.Drug.num_embeddings,
             embedding_dim=self.config.Encoder.Drug.embedding_dim,
             sequence_length=self.config.Encoder.Drug.sequence_length,
-            num_kernels=self.config.Encoder.Drug.num_filters,
-            kernel_length=self.config.Encoder.Drug.filter_length,
+            num_filters=self.config.Encoder.Drug.num_filters,
+            filter_length=self.config.Encoder.Drug.filter_length,
         )
 
         target_encoder = CNN(
             num_embeddings=self.config.Encoder.Target.num_embeddings,
             embedding_dim=self.config.Encoder.Target.embedding_dim,
             sequence_length=self.config.Encoder.Target.sequence_length,
-            num_kernels=self.config.Encoder.Target.num_filters,
-            kernel_length=self.config.Encoder.Target.filter_length,
+            num_filters=self.config.Encoder.Target.num_filters,
+            filter_length=self.config.Encoder.Target.filter_length,
         )
 
         decoder = MLP(

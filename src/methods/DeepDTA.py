@@ -1,16 +1,17 @@
+import torch
+import torch.nn.functional as F
 import pytorch_lightning as pl
+from torch.utils.data import DataLoader
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
-from torch.utils.data import DataLoader
-from data.loading import TDCDataset
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
-
 from .configs import ConfigLoader
-
+from data.loading import TDCDataset
 from modules.encoders import CNN
 from modules.decoders import MLP
-from modules.trainers import DeepDTATrainer
+from modules.trainers import BaseDTATrainer
+from data.evaluation import concordance_index
 
 
 # ============================== Configs ================================
@@ -20,7 +21,56 @@ set_float32_matmul_precision("medium")
 
 
 # =============================== Code ==================================
-class DeedDTA:
+class DeepDTA:
+    def __init__(self, config_file: str) -> None:
+        self.deepdta = _DeepDTA(config_file)
+
+    def make_model(self):
+        self.deepdta.make_model()
+
+    def train(self):
+        self.deepdta.train()
+
+    def predict(self):
+        raise NotImplementedError
+
+
+class _DeepDTATrainer(BaseDTATrainer):
+    """ """
+
+    def __init__(self, drug_encoder, target_encoder, decoder, lr, ci_metric, **kwargs):
+        super().__init__(drug_encoder, target_encoder, decoder, lr, ci_metric, **kwargs)
+
+    def forward(self, x_drug, x_target):
+        """
+        Forward propagation in DeepDTA architecture.
+
+        Args:
+            x_drug: drug sequence encoding.
+            x_target: target protein sequence encoding.
+        """
+        drug_emb = self.drug_encoder(x_drug)
+        target_emb = self.target_encoder(x_target)
+        comb_emb = torch.cat((drug_emb, target_emb), dim=1)
+
+        output = self.decoder(comb_emb)
+
+        return output
+
+    def validation_step(self, valid_batch, batch_idx):
+        x_drug, x_target, y = valid_batch
+        y_pred = self(x_drug, x_target)
+        loss = F.mse_loss(y_pred, y.view(-1, 1))
+
+        if self.ci_metric:
+            ci = concordance_index(y, y_pred)
+            self.log("valid_ci", ci, on_epoch=True, on_step=False)
+        self.log("valid_loss", loss, on_epoch=True, on_step=False)
+
+        return loss
+
+
+class _DeepDTA:
     config: ConfigLoader
 
     def __init__(self, config_file: str) -> None:
@@ -32,7 +82,7 @@ class DeedDTA:
 
         self.config = cl
 
-    def _make_model(self):
+    def make_model(self):
         drug_encoder = CNN(
             num_embeddings=self.config.Encoder.Drug.num_embeddings,
             embedding_dim=self.config.Encoder.Drug.embedding_dim,
@@ -57,7 +107,7 @@ class DeedDTA:
             include_decoder_layers=self.config.Decoder.include_decoder_layers,
         )
 
-        model = DeepDTATrainer(
+        model = _DeepDTATrainer(
             drug_encoder=drug_encoder,
             target_encoder=target_encoder,
             decoder=decoder,
@@ -65,6 +115,7 @@ class DeedDTA:
             ci_metric=self.config.Trainer.ci_metric,
         )
 
+        print(model)
         self.model = model
 
     def train(self):
@@ -103,8 +154,8 @@ class DeedDTA:
         )
 
         # ---- set model ----
-        self._make_model()
-        print(self.model)
+        if not hasattr(self, "model") or self.model is None:
+            self.make_model()
 
         # ---- training and evaluation ----
         checkpoint_callback = ModelCheckpoint(
@@ -133,4 +184,7 @@ class DeedDTA:
         )
 
         trainer.fit(self.model, train_loader, valid_loader)
-        trainer.test(test_loader)
+        trainer.test(
+            self.model,
+            test_loader,
+        )

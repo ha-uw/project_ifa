@@ -1,6 +1,5 @@
-import numpy as np
-import pytorch_lightning as pl
 import torch
+import pytorch_lightning as pl
 import torch.nn.functional as F
 
 from data.evaluation import concordance_index
@@ -84,46 +83,6 @@ class BaseDTATrainer(pl.LightningModule):
             self.log("test_ci", ci, on_epoch=True, on_step=False)
         self.log("test_loss", loss, on_epoch=True, on_step=False, prog_bar=True)
 
-        return loss
-
-
-class DeepDTATrainer(BaseDTATrainer):
-    """
-    An implementation of DeepDTA model based on BaseDTATrainer.
-    Args:
-        drug_encoder: drug CNN encoder.
-        target_encoder: target CNN encoder.
-        decoder: drug-target MLP decoder.
-        lr: learning rate.
-    """
-
-    def __init__(
-        self, drug_encoder, target_encoder, decoder, lr=0.001, ci_metric=False, **kwargs
-    ):
-        super().__init__(drug_encoder, target_encoder, decoder, lr, ci_metric, **kwargs)
-
-    def forward(self, x_drug, x_target):
-        """
-        Forward propagation in DeepDTA architecture.
-
-        Args:
-            x_drug: drug sequence encoding.
-            x_target: target protein sequence encoding.
-        """
-        drug_emb = self.drug_encoder(x_drug)
-        target_emb = self.target_encoder(x_target)
-        comb_emb = torch.cat((drug_emb, target_emb), dim=1)
-        output = self.decoder(comb_emb)
-        return output
-
-    def validation_step(self, valid_batch, batch_idx):
-        x_drug, x_target, y = valid_batch
-        y_pred = self(x_drug, x_target)
-        loss = F.mse_loss(y_pred, y.view(-1, 1))
-        if self.ci_metric:
-            ci = concordance_index(y, y_pred)
-            self.log("valid_ci", ci, on_epoch=True, on_step=False)
-        self.log("valid_loss", loss, on_epoch=True, on_step=False)
         return loss
 
 

@@ -1,6 +1,6 @@
-from methods.deepdta import DeedDTA
+from methods.deepdta import DeepDTA
 
 if __name__ == "__main__":
     config_file = r"C:\Users\raulc\code\projeto_ifá\configs\deepdta.yaml"
-    deepdta = DeedDTA(config_file)
+    deepdta = DeepDTA(config_file)
     deepdta.train()

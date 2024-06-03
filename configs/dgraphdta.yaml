@@ -1,0 +1,35 @@
+General:
+  random_seed: 42
+  output_dim: 128
+  early_stop: False
+  min_delta: 0.001
+  patience_epochs: 20
+
+Dataset:
+  name: DAVIS
+  path: ./data
+
+Encoder:
+  Drug:
+    input_dim: 78
+    output_dim: 128
+
+  Target:
+    input_dim: 54
+    output_dim: 128
+
+Decoder:
+  # MPL
+  input_dim: 256
+  hidden_dim: 1024
+  output_dim: 1
+  dropout_rate: 0.2
+  include_decoder_layers: False
+
+Trainer:
+  ci_metric: True
+  train_batch_size: 512
+  test_batch_size: 512
+  min_epochs: 0
+  max_epochs: 2 #1000
+  learning_rate: 0.0005

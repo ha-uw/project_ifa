@@ -1,0 +1,3 @@
+[submodule "lib/hhsuite"]
+	path = lib/hhsuite
+	url = https://github.com/soedinglab/hh-suite.git

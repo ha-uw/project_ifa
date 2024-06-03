@@ -25,7 +25,7 @@ class DeepDTA:
     def train(self):
         self._deepdta.train()
 
-    def predict(self):
+    def test(self):
         raise NotImplementedError("This will be implemented soon.")
 
 

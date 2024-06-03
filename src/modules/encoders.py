@@ -151,9 +151,9 @@ class GCN(nn.Module):
         super(GCN, self).__init__()
 
         # GCN layers for graph data (representing molecules)
-        self.conv1 = GCNConv(input_dim, input_dim, dropout=dropout_rate)
-        self.conv2 = GCNConv(input_dim, input_dim * 2, dropout=dropout_rate)
-        self.conv3 = GCNConv(input_dim * 2, input_dim * 4, dropout=dropout_rate)
+        self.conv1 = GCNConv(input_dim, input_dim)
+        self.conv2 = GCNConv(input_dim, input_dim * 2)
+        self.conv3 = GCNConv(input_dim * 2, input_dim * 4)
 
         # nn.Linear layers for processing graph data after GCN convolutions
         self.fc1 = nn.Linear(input_dim * 4, 1024)
@@ -199,7 +199,7 @@ class GIN(nn.Module):
         self.conv1 = GINConv(
             nn=nn.Sequential(
                 nn.Linear(input_dim, num_filters),
-                F.relu(),
+                nn.ReLU(),
                 nn.Linear(num_filters, num_filters),
             )
         )
@@ -208,7 +208,7 @@ class GIN(nn.Module):
         self.conv2 = GINConv(
             nn=nn.Sequential(
                 nn.Linear(num_filters, num_filters),
-                F.relu(),
+                nn.ReLU(),
                 nn.Linear(num_filters, num_filters),
             )
         )
@@ -217,7 +217,7 @@ class GIN(nn.Module):
         self.conv3 = GINConv(
             nn=nn.Sequential(
                 nn.Linear(num_filters, num_filters),
-                F.relu(),
+                nn.ReLU(),
                 nn.Linear(num_filters, num_filters),
             )
         )
@@ -226,7 +226,7 @@ class GIN(nn.Module):
         self.conv4 = GINConv(
             nn=nn.Sequential(
                 nn.Linear(num_filters, num_filters),
-                F.relu(),
+                nn.ReLU(),
                 nn.Linear(num_filters, num_filters),
             )
         )
@@ -235,7 +235,7 @@ class GIN(nn.Module):
         self.conv5 = GINConv(
             nn=nn.Sequential(
                 nn.Linear(num_filters, num_filters),
-                F.relu(),
+                nn.ReLU(),
                 nn.Linear(num_filters, num_filters),
             )
         )

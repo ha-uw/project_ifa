@@ -1,5 +1,5 @@
 venv/
-tests*
+tests.*
 *.tab
 __pycache__
 /data/

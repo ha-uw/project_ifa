@@ -1,28 +1,29 @@
-import numpy as np
-from math import sqrt
-from scipy import stats
 import torch
 
-
-# TODO I probably can get these dutring train. check check check
-def rmse(y, y_pred):
-    rmse = sqrt(((y - y_pred) ** 2).mean(axis=0))
-    return rmse
+# import numpy as np
+# from math import sqrt
+# from scipy import stats
 
 
-def mse(y, y_pred):
-    mse = ((y - y_pred) ** 2).mean(axis=0)
-    return mse
+# # TODO I probably can get these dutring train. check check check
+# def rmse(y, y_pred):
+#     rmse = sqrt(((y - y_pred) ** 2).mean(axis=0))
+#     return rmse
 
 
-def pearson(y, y_pred):
-    rp = np.corrcoef(y, y_pred)[0, 1]
-    return rp
+# def mse(y, y_pred):
+#     mse = ((y - y_pred) ** 2).mean(axis=0)
+#     return mse
 
 
-def spearman(y, y_pred):
-    rs = stats.spearmanr(y, y_pred)[0]
-    return rs
+# def pearson(y, y_pred):
+#     rp = np.corrcoef(y, y_pred)[0, 1]
+#     return rp
+
+
+# def spearman(y, y_pred):
+#     rs = stats.spearmanr(y, y_pred)[0]
+#     return rs
 
 
 def concordance_index(y, y_pred):

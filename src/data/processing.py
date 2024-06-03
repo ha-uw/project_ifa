@@ -13,7 +13,7 @@ from .constants import Tokens, AtomFeatures
 
 
 # Functions --------------------------------------------------------------------
-def one_hot_encode(x, allowable_set):
+def one_hot_encode(x, allowable_set) -> np.array:
     if x not in allowable_set:
         logging.warning(f"Input {x} not in allowable set {allowable_set}.")
         return np.zeros(len(allowable_set), dtype=int)
@@ -21,13 +21,13 @@ def one_hot_encode(x, allowable_set):
     return np.array([x == s for s in allowable_set], dtype=int)
 
 
-def one_hot_encode_with_unknown(x, allowable_set):
+def one_hot_encode_with_unknown(x, allowable_set) -> np.array:
     x = x if x in allowable_set else allowable_set[-1]
 
     return np.array([x == s for s in allowable_set], dtype=int)
 
 
-def get_atom_features(atom):
+def get_atom_features(atom) -> np.array:
     symbol_encoding = one_hot_encode_with_unknown(
         atom.GetSymbol(), AtomFeatures.CHARATOMSET
     )
@@ -60,49 +60,41 @@ def smile_to_graph(smiles):
     mol = Chem.MolFromSmiles(smiles)
     c_size = mol.GetNumAtoms()
 
-    features = []
-    for atom in mol.GetAtoms():
-        atom_features = get_atom_features(atom)
-        features.append(atom_features / sum(atom_features))
+    features = np.array([get_atom_features(atom) for atom in mol.GetAtoms()])
+    features = features / features.sum(axis=1, keepdims=True)
 
-    edges = [[bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()] for bond in mol.GetBonds()]
+    edges = [(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()) for bond in mol.GetBonds()]
 
     di_graph = nx.Graph(edges).to_directed()
     edge_index = list(di_graph.edges)
 
-    return c_size, features, edge_index
+    return c_size, features.tolist(), edge_index
 
 
-# -------------------------------------------------------------------------------
-# TODO: Fix style
-def tokenize_smiles(smiles, max_length=85, isomeric=False):
-    """ """
+def tokenize_sequence(sequence: str, char_set: dict, max_length: int = 85) -> np.array:
+    """Tokenizes a sequence using a given character set."""
+    sequence_array = np.array(list(sequence[:max_length]))
+    encoding = np.zeros(max_length)
+    encoding[: len(sequence_array)] = np.vectorize(char_set.get)(sequence_array, 0)
+
+    return encoding
+
+
+def tokenize_smiles(
+    smiles: str, max_length: int = 85, isomeric: bool = False
+) -> np.array:
+    """Tokenizes a SMILES string."""
     if not isomeric:
         mol = Chem.MolFromSmiles(smiles)
         if mol is None:
             logging.warning(f"rdkit cannot find this SMILES {smiles}.")
-        else:
-            smiles = Chem.MolToSmiles(Chem.MolFromSmiles(smiles), isomericSmiles=True)
-    encoding = np.zeros(max_length)
-    for idx, letter in enumerate(smiles[:max_length]):
-        encoding[idx] = Tokens.CHARISOSMISET.get(letter, 0)
-        if encoding[idx] == 0:
-            logging.warning(
-                f"Character '{letter}' not found in SMILES set, treated as padding."
-            )
+            return np.zeros(max_length)
+        smiles = Chem.MolToSmiles(mol, isomericSmiles=True)
 
-    return encoding
+    return tokenize_sequence(smiles, Tokens.CHARISOSMISET, max_length)
 
 
-def tokenize_target(sequence, max_length=1200):
-    """ """
+def tokenize_target(sequence: str, max_length: int = 1200) -> np.array:
+    """Tokenizes a protein sequence."""
 
-    encoding = np.zeros(max_length)
-    for idx, letter in enumerate(sequence[:max_length]):
-        letter = letter.upper()
-        encoding[idx] = Tokens.CHARPROTSET.get(letter, 0)
-        if encoding[idx] == 0:
-            logging.warning(
-                f"Character '{letter}' not found in protein set, treated as padding."
-            )
-    return encoding
+    return tokenize_sequence(sequence.upper(), Tokens.CHARPROTSET, max_length)

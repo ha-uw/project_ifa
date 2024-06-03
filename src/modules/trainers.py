@@ -2,24 +2,12 @@ import torch
 import pytorch_lightning as pl
 import torch.nn.functional as F
 
-from data.evaluation import concordance_index
+from src.data.evaluation import concordance_index
 
 
 # Trainer ----------------------------------------------------------------------
 class BaseDTATrainer(pl.LightningModule):
-    """
-    Base class for all drug target encoder-decoder architecture models, which is based on pytorch lightning wrapper,
-    for more details about pytorch lightning, please check https://github.com/PyTorchLightning/pytorch-lightning.
-    If you inherit from this class, a forward pass function must be implemented.
-
-    Args:
-        drug_encoder: drug information encoder.
-        target_encoder: target information encoder.
-        decoder: drug-target representations decoder.
-        lr: learning rate. (default: 0.001)
-        ci_metric: calculate the Concordance Index (CI) metric, and the operation is time-consuming for large-scale
-        dataset. (default: :obj:`False`)
-    """
+    """ """
 
     def __init__(
         self, drug_encoder, target_encoder, decoder, lr=0.001, ci_metric=False, **kwargs

@@ -16,17 +16,17 @@ from data.evaluation import concordance_index
 
 # =============================== Code ==================================
 class DeepDTA:
-    def __init__(self, config_file: str) -> None:
-        self.deepdta = _DeepDTA(config_file)
+    def __init__(self, config_file: str, fast_dev_run=False) -> None:
+        self._deepdta = _DeepDTA(config_file, fast_dev_run)
 
     def make_model(self):
-        self.deepdta.make_model()
+        self._deepdta.make_model()
 
     def train(self):
-        self.deepdta.train()
+        self._deepdta.train()
 
     def predict(self):
-        raise NotImplementedError
+        raise NotImplementedError("This will be implemented soon.")
 
 
 class _DeepDTATrainer(BaseDTATrainer):
@@ -67,8 +67,9 @@ class _DeepDTATrainer(BaseDTATrainer):
 class _DeepDTA:
     config: ConfigLoader
 
-    def __init__(self, config_file: str) -> None:
+    def __init__(self, config_file: str, fast_dev_run=False) -> None:
         self._load_configs(config_file)
+        self.fast_dev_run = fast_dev_run
 
     def _load_configs(self, config_path: str):
         cl = ConfigLoader()
@@ -174,7 +175,7 @@ class _DeepDTA:
             devices="auto",
             logger=tb_logger,
             callbacks=callbacks,
-            fast_dev_run=self.config.General.fast_dev_run,
+            fast_dev_run=self.fast_dev_run,
         )
 
         trainer.fit(self.model, train_loader, valid_loader)

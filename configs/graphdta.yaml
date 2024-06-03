@@ -1,5 +1,4 @@
 General:
-  fast_dev_run: False
   random_seed: 42
   output_dim: 128
   early_stop: False
@@ -41,12 +40,12 @@ Decoder:
   hidden_dim: 1024
   out_dim: 1
   dropout_rate: 0.2
-  include_decoder_layers: True
+  include_decoder_layers: False
 
 Trainer:
   ci_metric: True
   train_batch_size: 512
   test_batch_size: 512
   min_epochs: 0
-  max_epochs: 1000
+  max_epochs: 2 #1000
   learning_rate: 0.0005

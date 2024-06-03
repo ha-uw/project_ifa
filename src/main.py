@@ -6,7 +6,7 @@ set_float32_matmul_precision("medium")
 
 config_file = r"C:\Users\raulc\code\projeto_ifá\configs\graphdta.yaml"
 dataset = "DAVIS"
-FAST_DEV_RUN = False
+FAST_DEV_RUN = True
 
 
 def deepdta():

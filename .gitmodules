@@ -1,0 +1,9 @@
+[submodule "libhhsuite"]
+	path = libhhsuite
+	url = https://github.com/soedinglab/hh-suite
+[submodule "lib"]
+	path = lib
+	url = https://github.com/soedinglab/hh-suite
+[submodule "hh-suite"]
+	path = hh-suite
+	url = https://github.com/soedinglab/hh-suite

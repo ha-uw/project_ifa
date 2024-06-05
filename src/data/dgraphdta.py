@@ -2,8 +2,8 @@ import os
 import random
 import numpy as np
 import json
+import conkit
 from collections import OrderedDict
-import pconsc4
 
 
 def seq_format(proteins_dic, output_dir):
@@ -116,8 +116,3 @@ def pconsc4Prediction():
                     print(output_file, "over.")
                 except:
                     print(output_file, "error.")
-
-
-if __name__ == "__main__":
-    alnFilePrepare()
-    pconsc4Prediction()

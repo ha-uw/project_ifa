@@ -4,9 +4,10 @@ import numpy as np
 import json
 import conkit
 from collections import OrderedDict
+
+
 import subprocess
-from conkit.io import fasta, clustal, a3m
-from conkit.applications import 
+
 
 def write_to_file(output_dir, filename, content):
     """Function to write content to a file."""

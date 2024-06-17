@@ -1,6 +1,8 @@
 from methods.deepdta import DeepDTA
 from methods.graphdta import GraphDTA
 from methods.dgraphdta import DGraphDTA
+from data.loading import TDCDataset
+from data.preprocessing import preprocess_targets
 from torch import set_float32_matmul_precision
 
 set_float32_matmul_precision("medium")
@@ -28,4 +30,5 @@ def dgraphdta():
 
 
 if __name__ == "__main__":
-    dgraphdta()
+    data = TDCDataset("DAVIS")
+    preprocess_targets(data)

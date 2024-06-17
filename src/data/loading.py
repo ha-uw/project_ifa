@@ -35,6 +35,7 @@ class TDCDataset(data.Dataset):
             raise ValueError(
                 "Invalid split type. Expected one of: ['train', 'valid', 'test']"
             )
+        self.name = name.upper()
         self.data = DTI(name=name, path=path)
         self.mode_drug = mode_drug.lower()
         self.mode_target = mode_target.lower()

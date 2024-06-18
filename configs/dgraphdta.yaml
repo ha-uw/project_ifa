@@ -12,7 +12,9 @@ Dataset:
 Preprocessing:
   Target:
     MSA:
-      db_path: "path/to/your/hhblits/db" # change
+      hhblits_db_path: r"C:\Users\raulc\code\projeto_ifá\data\hhsuite\UniRef30_2023_02_hhsuite"
+      hhblits_bin: r"wsl /home/raulc/miniconda3/condabin/conda run -n ifa_linux hhblits"
+      hhfilter_bin: r"wsl /home/raulc/miniconda3/condabin/conda run -n ifa_linux hhfilter"
       max_filter: 100000
       realign_max: 100000
       block_size: 100000

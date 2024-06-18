@@ -1,13 +1,11 @@
 from methods.deepdta import DeepDTA
 from methods.graphdta import GraphDTA
 from methods.dgraphdta import DGraphDTA
-from data.loading import TDCDataset
-from data.preprocessing import preprocess_targets
 from torch import set_float32_matmul_precision
 
 set_float32_matmul_precision("medium")
 
-config_file = r"C:\Users\raulc\code\projeto_ifá\configs\dgraphdta.yaml"
+config_file = r"C:\Users\raulc\code\projeto_ifá\configs\graphdta.yaml"
 dataset = "DAVIS"
 FAST_DEV_RUN = True
 
@@ -30,5 +28,4 @@ def dgraphdta():
 
 
 if __name__ == "__main__":
-    data = TDCDataset("DAVIS")
-    preprocess_targets(data)
+    """"""

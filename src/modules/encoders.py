@@ -30,24 +30,24 @@ class CNN(nn.Module):
         embedding_dim,
         sequence_length,
         num_filters,
-        filter_length,
+        kernel_size,
     ):
         super(CNN, self).__init__()
         self.embedding = nn.Embedding(num_embeddings + 1, embedding_dim)
         self.conv1 = nn.Conv1d(
             in_channels=sequence_length,
             out_channels=num_filters,
-            kernel_size=filter_length[0],
+            kernel_size=kernel_size[0],
         )
         self.conv2 = nn.Conv1d(
             in_channels=num_filters,
             out_channels=num_filters * 2,
-            kernel_size=filter_length[1],
+            kernel_size=kernel_size[1],
         )
         self.conv3 = nn.Conv1d(
             in_channels=num_filters * 2,
             out_channels=num_filters * 3,
-            kernel_size=filter_length[2],
+            kernel_size=kernel_size[2],
         )
         self.global_max_pool = nn.AdaptiveMaxPool1d(output_size=1)
 
@@ -61,112 +61,37 @@ class CNN(nn.Module):
         return x
 
 
-# class CNN(nn.Module):
-#     """
-#     Convolutional Neural Network (CNN) encoder with dynamic convolutional layers.
-#     This encoder uses an embedding layer followed by a dynamic number of convolutional layers and a global max pooling layer.
-#     """
-
-#     def __init__(
-#         self,
-#         num_embeddings,
-#         embedding_dim,
-#         sequence_length,
-#         num_filters,
-#         filter_lengths,
-#         num_conv_layers,
-#     ):
-#         super(CNN, self).__init__()
-#         self.embedding = nn.Embedding(num_embeddings + 1, embedding_dim)
-
-#         # Initialize convolutional layers dynamically based on num_conv_layers
-#         self.conv_layers = nn.ModuleList()
-#         for i in range(num_conv_layers):
-#             in_channels = sequence_length if i == 0 else num_filters * 2 ** (i - 1)
-#             out_channels = num_filters * 2**i
-#             kernel_size = filter_lengths[i]
-#             conv_layer = nn.Conv1d(
-#                 in_channels=in_channels,
-#                 out_channels=out_channels,
-#                 kernel_size=kernel_size,
-#             )
-#             self.conv_layers.append(conv_layer)
-
-#         self.global_max_pool = nn.AdaptiveMaxPool1d(output_size=1)
-
-#     def forward(self, x: torch.Tensor | list[torch.Tensor]):
-#         if isinstance(x, list):
-#             # If x is a list of tensors, process each tensor individually and concatenate the results
-#             outputs = []
-#             for xn in x:
-#                 xn = self.embedding(xn)
-#                 for conv in self.conv_layers:
-#                     xn = self.global_max_pool(F.relu(conv(xn)))
-#                     # Dynamically calculate the number of features
-#                     num_features = xn.size(1) * xn.size(2)
-#                     xn = xn.view(-1, num_features)
-#                 outputs.append(xn)
-
-#             # Concatenate along the first dimension
-#             x = torch.cat(outputs, dim=1)
-
-#         else:
-#             # Process a single tensor
-#             x = self.embedding(x)
-#             for conv in self.conv_layers:
-#                 x = F.relu(conv(x))
-#             x = self.global_max_pool(x)
-#             x = x.squeeze(2)
-
-#         return x
-
-
 class WideCNN(nn.Module):
-    def __init__(self):
-        super().__init__()
-        ###protein
-        self.pconv1 = nn.Conv1d(
-            in_channels=6729, out_channels=16, kernel_size=2, stride=1, padding=1
+    def __init__(
+        self,
+        sequence_length,
+        num_filters=16,
+        kernel_size=2,
+    ):
+        super(WideCNN, self).__init__()
+        self.conv1 = nn.Conv1d(
+            in_channels=sequence_length,
+            out_channels=num_filters,
+            kernel_size=kernel_size,
+            stride=1,
+            padding=1,
         )
-        self.pconv2 = nn.Conv1d(16, 32, 2, stride=1, padding=1)
-        self.maxpool = nn.MaxPool1d(2, 2)
-        ###ligands
-        self.lconv1 = nn.Conv1d(
-            in_channels=10, out_channels=16, kernel_size=2, stride=1, padding=1
+        self.conv2 = nn.Conv1d(
+            in_channels=num_filters,
+            out_channels=num_filters * 2,
+            kernel_size=kernel_size,
+            stride=1,
+            padding=1,
         )
-        self.lconv2 = nn.Conv1d(16, 32, 2, stride=1, padding=1)
-        #####motif
-        self.mconv1 = nn.Conv1d(
-            in_channels=1076, out_channels=16, kernel_size=2, stride=1, padding=1
-        )
-        self.mconv2 = nn.Conv1d(16, 32, 2, stride=1, padding=1)
+        self.max_pool = nn.MaxPool1d(2, 2)
 
-        ###
-        self.dropout = nn.Dropout(0.3)
-        self.FC1 = nn.Linear(5120, 512)
-        self.FC2 = nn.Linear(512, 10)
-        self.FC3 = nn.Linear(10, 1)
+    def forward(self, x) -> tuple:
+        x = self.max_pool(F.relu(self.conv1(x)))
+        x = self.max_pool(F.relu(self.conv2(x)))
+        x_size = x.size(2) * x.size(1)
 
-    def forward(self, x1, x2, x3):
-        x1 = self.maxpool(F.relu(self.pconv1(x1)))
-        x1 = self.maxpool(F.relu(self.pconv2(x1)))
+        x = x.view(-1, x_size)
 
-        x2 = self.maxpool(F.relu(self.lconv1(x2)))
-        x2 = self.maxpool(F.relu(self.lconv2(x2)))
-
-        x3 = self.maxpool(F.relu(self.mconv1(x3)))
-        x3 = self.maxpool(F.relu(self.mconv2(x3)))
-
-        x1 = x1.view(-1, 149 * 32)
-        x2 = x2.view(-1, 3 * 32)
-        x3 = x3.view(-1, 8 * 32)
-
-        x = torch.cat([x1, x2, x3], 1)
-        x = F.relu(self.FC1(x))
-        x = self.dropout(x)
-        x = F.relu(self.FC2(x))
-        x = self.dropout(x)
-        x = self.FC3(x)
         return x
 
 

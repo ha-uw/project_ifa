@@ -8,6 +8,7 @@ import logging
 import numpy as np
 from rdkit import Chem
 import networkx as nx
+import deepsmiles
 
 from .constants import Tokens, AtomFeatures
 
@@ -55,7 +56,7 @@ def get_atom_features(atom) -> np.array:
     )
 
 
-def smile_to_graph(smiles):
+def smile_to_graph(smiles: str):
     """ """
     mol = Chem.MolFromSmiles(smiles)
     c_size = mol.GetNumAtoms()
@@ -98,3 +99,10 @@ def tokenize_target(sequence: str, max_length: int = 1200) -> np.array:
     """Tokenizes a protein sequence."""
 
     return tokenize_sequence(sequence.upper(), Tokens.CHARPROTSET, max_length)
+
+
+def to_deepsmiles(smiles: str):
+    converter = deepsmiles.Converter(rings=True, branches=True)
+    deep_smiles = converter.encode(smiles)
+
+    return deep_smiles

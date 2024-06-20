@@ -1,6 +1,10 @@
 from methods.deepdta import DeepDTA
 from methods.graphdta import GraphDTA
 from methods.dgraphdta import DGraphDTA
+from tdc.multi_pred import DTI
+from data.loading import TDCDataset
+from data.preprocessing import MotifFetcher
+from time import sleep
 
 from torch import set_float32_matmul_precision
 
@@ -28,5 +32,23 @@ def dgraphdta():
     dgraphdta.train()
 
 
+def do_motif(dataset):
+    dataset = TDCDataset(dataset)
+    mf = MotifFetcher(concurrent_sessions=3)
+    mf.load_motif_file(dataset)
+
+
 if __name__ == "__main__":
-    """"""
+    counter = 0
+    max_attempts = 3
+    datasets = ["KIBA"]
+
+    while counter < max_attempts:
+        for ds in datasets:
+            try:
+                do_motif(ds)
+                datasets.remove(ds)
+            except Exception as e:
+                print(e)
+                sleep(60 * 5 * counter)
+                counter += 1

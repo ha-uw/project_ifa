@@ -1,4 +1,5 @@
 import torch
+from pathlib import Path
 from tdc.multi_pred import DTI
 from torch.utils import data
 from torch_geometric import data as pyg_data
@@ -36,6 +37,7 @@ class TDCDataset(data.Dataset):
                 "Invalid split type. Expected one of: ['train', 'valid', 'test']"
             )
         self.name = name.upper()
+        self.path = Path(path)
         self.data = DTI(name=name, path=path)
         self.mode_drug = mode_drug.lower()
         self.mode_target = mode_target.lower()

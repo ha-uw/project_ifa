@@ -5,6 +5,7 @@ from torch.utils import data
 from torch_geometric import data as pyg_data
 
 from .processing import tokenize_target, tokenize_smiles, smile_to_graph
+from .preprocessing import MotifFetcher
 
 
 class TDCDataset(data.Dataset):
@@ -26,8 +27,7 @@ class TDCDataset(data.Dataset):
         name: str,
         split="train",
         path="./data",
-        mode_drug="cnn",
-        mode_target="cnn",
+        mode="deepdta",
         y_to_log=True,
         drug_transform=None,
         target_transform=None,
@@ -36,11 +36,16 @@ class TDCDataset(data.Dataset):
             raise ValueError(
                 "Invalid split type. Expected one of: ['train', 'valid', 'test']"
             )
+        
+        modes = ["deepdta", "graphdta", "widedta"]
+        if mode.lower() not in modes:
+            raise ValueError(
+                f"The mode must be: {", ".join(modes)}"
+            )
         self.name = name.upper()
         self.path = Path(path)
         self.data = DTI(name=name, path=path)
-        self.mode_drug = mode_drug.lower()
-        self.mode_target = mode_target.lower()
+        self.mode = mode.lower()
         if y_to_log:
             self.data.convert_to_log()
         self.data = self.data.get_split()[split]
@@ -49,6 +54,24 @@ class TDCDataset(data.Dataset):
 
     def __len__(self):
         return len(self.data)
+    
+    def _deepdta(self, drug, target):
+        drug = torch.LongTensor(tokenize_smiles(drug))
+        target = torch.LongTensor(tokenize_target(target))
+        
+        return drug, target
+    
+    def _graphdta(self, drug, target, label):
+        c_size, features, edge_index = smile_to_graph(drug)
+        drug = pyg_data.Data(
+            x=torch.Tensor(features),
+            edge_index=torch.LongTensor(edge_index).transpose(1, 0),
+            y=torch.Tensor([label]),
+        )
+        drug.__setitem__("c_size", torch.LongTensor([c_size]))
+        target = torch.LongTensor(tokenize_target(target))
+        
+        return drug, target
 
     def __getitem__(self, idx):
         drug, target, label = (
@@ -56,23 +79,13 @@ class TDCDataset(data.Dataset):
             self.data["Target"][idx],
             self.data["Y"][idx],
         )
-
-        # Drug
-        if self.mode_drug == "cnn":
-            drug = torch.LongTensor(tokenize_smiles(drug))
-
-        elif self.mode_drug == "gcn":
-            c_size, features, edge_index = smile_to_graph(drug)
-            drug = pyg_data.Data(
-                x=torch.Tensor(features),
-                edge_index=torch.LongTensor(edge_index).transpose(1, 0),
-                y=torch.Tensor([label]),
-            )
-            drug.__setitem__("c_size", torch.LongTensor([c_size]))
-
-        # Target
-        if self.mode_target == "cnn":
-            target = torch.LongTensor(tokenize_target(target))
+        match self.mode:
+            case "deepdta":
+                drug, target = self._deepdta(drug, target)
+            case "graphdta":
+                drug, target = self._graphdta(drug, target)
+            case "widedta":
+                pass
 
         # Label
         label = torch.FloatTensor([label])

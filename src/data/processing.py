@@ -106,3 +106,12 @@ def to_deepsmiles(smiles: str):
     deep_smiles = converter.encode(smiles)
 
     return deep_smiles
+
+
+def MPMy(mol, pro, moti, y):
+    mpmy = []
+    for i, m in mol.items():
+        for j, p, mp in zip(pro.keys(), pro.values(), moti.values()):
+            mpmy.append(((torch.Tensor(m), torch.Tensor(p), torch.Tensor(mp)), y[i][j]))
+
+    return mpmy

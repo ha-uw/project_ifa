@@ -5,24 +5,11 @@ from bs4 import BeautifulSoup
 from pathlib import Path
 import pandas as pd
 from tqdm import tqdm
-from .loading import TDCDataset
-
-
-SEARCH_MOTIF_URL = "https://www.genome.jp/tools-bin/search_motif_lib"
+from torch.utils.data import Dataset
 
 
 class MotifFetcher:
-    def __init__(self, concurrent_sessions=2, max_unsuccessful_responses=5):
-        self._mf = _MotifFetcher(
-            concurrent_sessions=concurrent_sessions,
-            max_unsuccessful_responses=max_unsuccessful_responses,
-        )
-
-    def load_motifs(self, dataset: TDCDataset):
-        return self._mf.load_motifs(dataset=dataset)
-
-
-class _MotifFetcher:
+    SEARCH_MOTIF_URL = "https://www.genome.jp/tools-bin/search_motif_lib"
 
     def __init__(self, concurrent_sessions=2, max_unsuccessful_responses=5):
         self.concurrent_sessions = concurrent_sessions
@@ -96,17 +83,13 @@ class _MotifFetcher:
 
         return
 
-    def _update_motif_file(
-        self, dataset, motif_file_path, local_data=pd.DataFrame | None
-    ):
+    def _update_motif_file(self, data, motif_file_path, local_data=pd.DataFrame | None):
         initial = 0
         if isinstance(local_data, pd.DataFrame) and not local_data.empty:
-            unprocessed_data = dataset.data[
-                ~dataset.data["Target_ID"].isin(local_data["Target_ID"])
-            ]
+            unprocessed_data = data[~data["Target_ID"].isin(local_data["Target_ID"])]
             initial += len(local_data["Target_ID"])
         else:
-            unprocessed_data = dataset.data
+            unprocessed_data = data
             with open(motif_file_path, "w") as file:
                 file.write("Target_ID,Motif\n")
 
@@ -115,9 +98,10 @@ class _MotifFetcher:
 
         if target_ids.empty:
             print("Motif file up to date.")
+            return True
         else:
             progress_bar = tqdm(
-                total=len(dataset.data["Target_ID"]),
+                total=len(data["Target_ID"]),
                 initial=initial,
                 desc="Fetching motifs",
             )
@@ -128,29 +112,30 @@ class _MotifFetcher:
                 )
             )
 
-        return
+        return False
 
     def _filter_data(self, data):
-        data.dropna(inplace=True)
+        # data.dropna(inplace=True)
         data.drop_duplicates(subset=["Target_ID"], inplace=True)
 
         return
 
-    def load_motifs(self, dataset: TDCDataset):
-        self._filter_data(dataset.data)  # remove NaN values and duplicates
+    def get_motifs(self, data: Dataset, path, name):
+        self._filter_data(data)  # remove NaN values and duplicates
 
-        motif_file_path = Path(
-            dataset.path, dataset.name.lower(), f"{dataset.name.lower()}_motifs.csv"
-        )
+        motif_file_path = Path(path, name.lower(), f"{name.lower()}_motifs.csv")
 
         if motif_file_path.is_file() and motif_file_path.stat().st_size > 0:
             local_data = pd.read_csv(motif_file_path)
             print("Motif file loaded successfully.")
-            self._update_motif_file(
-                dataset, motif_file_path=motif_file_path, local_data=local_data
+            updated = self._update_motif_file(
+                data, motif_file_path=motif_file_path, local_data=local_data
             )
         else:
             motif_file_path.parent.mkdir(exist_ok=True, parents=True)
-            self._update_motif_file(dataset, motif_file_path)
+            updated = self._update_motif_file(data, motif_file_path)
 
-        return
+        if updated:
+            local_data = pd.read_csv(motif_file_path)
+
+        return local_data

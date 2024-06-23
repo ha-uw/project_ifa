@@ -106,6 +106,14 @@ class _WideDTA:
             filter_length=self.config.Encoder.Target.filter_length,
         )
 
+        motif_encoder = WideCNN(
+            num_embeddings=self.config.Encoder.Target.num_embeddings,
+            embedding_dim=self.config.Encoder.Target.embedding_dim,
+            sequence_length=self.config.Encoder.Target.sequence_length,
+            num_filters=self.config.Encoder.Target.num_filters,
+            filter_length=self.config.Encoder.Target.filter_length,
+        )
+
         decoder = MLP(
             in_dim=self.config.Decoder.in_dim,
             hidden_dim=self.config.Decoder.hidden_dim,

@@ -82,10 +82,10 @@ def tokenize_sequence(sequence: str, char_set: dict, max_length: int = 85) -> np
 
 
 def tokenize_smiles(
-    smiles: str, max_length: int = 85, isomeric: bool = False
+    smiles: str, max_length: int = 85, to_isomeric: bool = False
 ) -> np.array:
     """Tokenizes a SMILES string."""
-    if not isomeric:
+    if to_isomeric:
         mol = Chem.MolFromSmiles(smiles)
         if mol is None:
             logging.warning(f"rdkit cannot find this SMILES {smiles}.")
@@ -108,10 +108,25 @@ def to_deepsmiles(smiles: str):
     return deep_smiles
 
 
-def MPMy(mol, pro, moti, y):
-    mpmy = []
-    for i, m in mol.items():
-        for j, p, mp in zip(pro.keys(), pro.values(), moti.values()):
-            mpmy.append(((torch.Tensor(m), torch.Tensor(p), torch.Tensor(mp)), y[i][j]))
+def split_sequences(sequences_dict: dict, word_len: int) -> dict:
+    """
+    Splits each sequence in the input dictionary into substrings of a specified length.
 
-    return mpmy
+    Parameters:
+        sequences_dict (dict): A dictionary with keys as identifiers and values as sequences.
+        word_len (int): The length of each substring to split the sequences into.
+
+    Returns:
+        dict: A new dictionary with the same keys but with values being tuples of substrings.
+    """
+    split_dict = {}
+    for key, sequence in sequences_dict.items():
+        substrings = ()
+        sequence_length = len(sequence)
+        for start_index in range(word_len):
+            for index in range(start_index, sequence_length, word_len):
+                substring = sequence[index : index + word_len]
+                if len(substring) == word_len:
+                    substrings += (substring,)
+        split_dict[key] = substrings
+    return split_dict

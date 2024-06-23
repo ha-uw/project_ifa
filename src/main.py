@@ -51,8 +51,10 @@ def make_motifs(dataset):
 
 
 if __name__ == "__main__":
-    datasets = ["KIBA", "DAVIS", "bindingdb_kd", "bindingdb_ki", "bindingdb_ic50"]
+    # datasets = ["KIBA", "DAVIS", "bindingdb_kd", "bindingdb_ki", "bindingdb_ic50"]
 
-    for ds in datasets:
-        print(f"\nDoing {ds} ", "-" * 50)
-        make_motifs(ds)
+    # for ds in datasets:
+    #     print(f"\nDoing {ds} ", "-" * 50)
+    #     make_motifs(ds)
+
+    TDCDataset("Davis", mode="widedta")[22]

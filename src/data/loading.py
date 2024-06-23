@@ -116,12 +116,12 @@ class TDCDataset(data.Dataset):
 
             case "graphdta":
                 drug, target = self._graphdta(drug, target, label)
-                return drug, target
+                return drug, target, label
 
             case "widedta":
                 motif = self.data["Motif"][index]
                 drug, target, motif = self._widedta(drug, target, motif)
-                return drug, target, motif
+                return drug, target, motif, label
 
     def __getitem__(self, index):
         return self._process_data(index)

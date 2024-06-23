@@ -16,7 +16,9 @@ from data.evaluation import concordance_index
 
 
 class GraphDTA:
-    def __init__(self, config_file: str, drug_encoder: str, fast_dev_run=False) -> None:
+    def __init__(
+        self, config_file: str, drug_encoder: str = "GCN", fast_dev_run=False
+    ) -> None:
         self._graphdta = _GraphDTA(
             config_file, drug_encoder=drug_encoder, fast_dev_run=fast_dev_run
         )
@@ -31,7 +33,7 @@ class GraphDTA:
         raise NotImplementedError
 
 
-class _GraphDTATrainer(BaseDTATrainer):
+class GraphDTATrainer(BaseDTATrainer):
     """"""
 
     def __init__(self, drug_encoder, target_encoder, decoder, lr, ci_metric, **kwargs):
@@ -120,9 +122,8 @@ class _GraphDTA:
             hidden_dim=self.config.Decoder.hidden_dim,
             in_dim=self.config.Decoder.in_dim,
             num_fc_layers=self.config.Decoder.num_fc_layers,
-            out_dim=self.config.Decoder.out_dim,
         )
-        model = _GraphDTATrainer(
+        model = GraphDTATrainer(
             drug_encoder=drug_encoder,
             target_encoder=target_encoder,
             decoder=decoder,

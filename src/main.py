@@ -19,7 +19,7 @@ def deepdta():
     deepdta.train()
 
 
-def graphdta(drug_encoder):
+def graphdta(drug_encoder="GCN"):
     config_file = r"C:\Users\raulc\code\projeto_ifá\configs\graphdta.yaml"
     graphdta = GraphDTA(
         config_file, drug_encoder=drug_encoder, fast_dev_run=FAST_DEV_RUN
@@ -57,4 +57,4 @@ if __name__ == "__main__":
     # print(torch.__version__)
     # print(torch.cuda.get_device_properties(0))
     # print(torch.cuda.is_available())
-    deepdta()
+    graphdta()

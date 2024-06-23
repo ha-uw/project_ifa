@@ -7,11 +7,7 @@ import torch
 class TestTDCDataset(unittest.TestCase):
     def setUp(self):
         self.dataset = TDCDataset(
-            name="DAVIS",
-            split="train",
-            path="./data",
-            mode_drug="cnn",
-            mode_target="cnn",
+            name="DAVIS", split="train", path="./data", mode="deepdta"
         )
 
     def test_getitem(self):

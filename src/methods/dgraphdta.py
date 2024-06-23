@@ -95,7 +95,7 @@ class _DGraphDTA:
             hidden_dim=self.config.Decoder.hidden_dim,
             out_dim=self.config.Decoder.output_dim,
             dropout_rate=self.config.Decoder.dropout_rate,
-            include_decoder_layers=self.config.Decoder.include_decoder_layers,
+            num_fc_layers=self.config.Decoder.num_fc_layers,
         )
 
         model = _DGraphDTATrainer(

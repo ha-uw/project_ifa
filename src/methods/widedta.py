@@ -95,7 +95,7 @@ class _WideDTA:
             embedding_dim=self.config.Encoder.Drug.embedding_dim,
             sequence_length=self.config.Encoder.Drug.sequence_length,
             num_filters=self.config.Encoder.Drug.num_filters,
-            filter_length=self.config.Encoder.Drug.filter_length,
+            kernel_size=self.config.Encoder.Drug.kernel_size,
         )
 
         target_encoder = WideCNN(
@@ -103,7 +103,7 @@ class _WideDTA:
             embedding_dim=self.config.Encoder.Target.embedding_dim,
             sequence_length=self.config.Encoder.Target.sequence_length,
             num_filters=self.config.Encoder.Target.num_filters,
-            filter_length=self.config.Encoder.Target.filter_length,
+            kernel_size=self.config.Encoder.Target.kernel_size,
         )
 
         motif_encoder = WideCNN(
@@ -111,7 +111,7 @@ class _WideDTA:
             embedding_dim=self.config.Encoder.Target.embedding_dim,
             sequence_length=self.config.Encoder.Target.sequence_length,
             num_filters=self.config.Encoder.Target.num_filters,
-            filter_length=self.config.Encoder.Target.filter_length,
+            kernel_size=self.config.Encoder.Target.kernel_size,
         )
 
         decoder = MLP(

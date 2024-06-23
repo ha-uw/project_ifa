@@ -60,7 +60,7 @@ class TestProcessing(unittest.TestCase):
         encoding = processing.tokenize_smiles("XX", 5)
         self.assertEqual(encoding.tolist(), [0.0] * 5)
 
-        encoding = processing.tokenize_smiles("CZi", 5, isomeric=True)
+        encoding = processing.tokenize_smiles("CZi", 5, to_isomeric=False)
         self.assertEqual(encoding.tolist(), [42.0, 19.0, 59.0, 0.0, 0.0])
 
     def test_tokenize_target(self):

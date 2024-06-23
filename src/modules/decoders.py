@@ -23,7 +23,6 @@ class MLP(nn.Module):
     Args:
         in_dim (int): The dimension of the input feature.
         hidden_dim (int): The dimension of hidden layers.
-        out_dim (int): The dimension of the output layer.
         num_fc_layers (int): The number of fully connected layers. Defaults to 2 for a simpler MLP structure.
         dropout_rate (float): The dropout rate during training.
     """
@@ -32,7 +31,6 @@ class MLP(nn.Module):
         self,
         in_dim,
         hidden_dim,
-        out_dim,
         dropout_rate=0.1,
         num_fc_layers=2,
     ):
@@ -48,25 +46,23 @@ class MLP(nn.Module):
         for _ in range(1, num_fc_layers - 1):
             self.fc_layers.append(nn.Linear(hidden_dim, hidden_dim))
 
-        # Output layer
+        # Output layer hardcoded to 1
         if num_fc_layers > 1:
-            self.fc_layers.append(nn.Linear(hidden_dim, out_dim))
+            self.fc_layers.append(nn.Linear(hidden_dim, 1))
         else:
-            # If only one layer is requested, directly connect in_dim to out_dim
-            self.fc_layers[-1] = nn.Linear(in_dim, out_dim)
+            self.fc_layers[-1] = nn.Linear(in_dim, 1)
 
-        # Initialize weights of the last layer if it's a specific case
         if num_fc_layers == 4:
             torch.nn.init.normal_(self.fc_layers[-1].weight)
 
     def forward(self, x):
         for i, fc in enumerate(self.fc_layers):
             x = fc(x)
-            if (
-                i < self.num_fc_layers - 1
-            ):  # Apply ReLU and dropout to all but the last layer
+            if i < self.num_fc_layers - 1:
+                # Apply ReLU and dropout to all but the last layer
                 x = F.relu(x)
                 x = self.dropout(x)
+
         return x
 
 
@@ -101,7 +97,7 @@ class MLP(nn.Module):
 #             torch.nn.init.normal_(self.fc4.weight)
 #             self.dropout = nn.Dropout(dropout_rate)
 #         else:
-#             self.fc2 = nn.Linear(hidden_dim, out_dim)
+#             self.fc2 = nn.Linear(hidden_dim, 1)
 #             self.dropout = nn.Dropout(dropout_rate)
 
 #     def forward(self, x):

@@ -1,35 +1,30 @@
 from methods.deepdta import DeepDTA
 from methods.graphdta import GraphDTA
-from methods.dgraphdta import DGraphDTA
-from tdc.multi_pred import DTI
 from data.loading import TDCDataset
 from data.preprocessing import MotifFetcher
 from time import sleep
+import torch
 
 from torch import set_float32_matmul_precision
 
 set_float32_matmul_precision("medium")
 
-config_file = r"C:\Users\raulc\code\projeto_ifá\configs\dgraphdta.yaml"
 dataset = "DAVIS"
 FAST_DEV_RUN = True
 
 
 def deepdta():
+    config_file = r"C:\Users\raulc\code\projeto_ifá\configs\deepdta.yaml"
     deepdta = DeepDTA(config_file, fast_dev_run=FAST_DEV_RUN)
     deepdta.train()
 
 
 def graphdta(drug_encoder):
+    config_file = r"C:\Users\raulc\code\projeto_ifá\configs\graphdta.yaml"
     graphdta = GraphDTA(
         config_file, drug_encoder=drug_encoder, fast_dev_run=FAST_DEV_RUN
     )
     graphdta.train()
-
-
-def dgraphdta():
-    dgraphdta = DGraphDTA(config_file, fast_dev_run=FAST_DEV_RUN)
-    dgraphdta.train()
 
 
 def make_motifs(dataset):
@@ -57,4 +52,9 @@ if __name__ == "__main__":
     #     print(f"\nDoing {ds} ", "-" * 50)
     #     make_motifs(ds)
 
-    TDCDataset("Davis", mode="widedta")[22]
+    # TDCDataset("Davis", mode="widedta")[22]
+
+    # print(torch.__version__)
+    # print(torch.cuda.get_device_properties(0))
+    # print(torch.cuda.is_available())
+    deepdta()

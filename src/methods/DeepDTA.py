@@ -6,6 +6,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
+from pathlib import Path
 from .configs import ConfigLoader
 from data.loading import TDCDataset
 from modules.encoders import CNN
@@ -45,6 +46,7 @@ class _DeepDTATrainer(BaseDTATrainer):
         """
         drug_emb = self.drug_encoder(x_drug)
         target_emb = self.target_encoder(x_target)
+
         comb_emb = torch.cat((drug_emb, target_emb), dim=1)
 
         output = self.decoder(comb_emb)
@@ -83,7 +85,7 @@ class _DeepDTA:
             embedding_dim=self.config.Encoder.Drug.embedding_dim,
             sequence_length=self.config.Encoder.Drug.sequence_length,
             num_filters=self.config.Encoder.Drug.num_filters,
-            filter_length=self.config.Encoder.Drug.filter_length,
+            kernel_size=self.config.Encoder.Drug.kernel_size,
         )
 
         target_encoder = CNN(
@@ -91,15 +93,14 @@ class _DeepDTA:
             embedding_dim=self.config.Encoder.Target.embedding_dim,
             sequence_length=self.config.Encoder.Target.sequence_length,
             num_filters=self.config.Encoder.Target.num_filters,
-            filter_length=self.config.Encoder.Target.filter_length,
+            kernel_size=self.config.Encoder.Target.kernel_size,
         )
 
         decoder = MLP(
             in_dim=self.config.Decoder.in_dim,
             hidden_dim=self.config.Decoder.hidden_dim,
-            out_dim=self.config.Decoder.out_dim,
             dropout_rate=self.config.Decoder.dropout_rate,
-            include_decoder_layers=self.config.Decoder.include_decoder_layers,
+            num_fc_layers=self.config.Decoder.num_fc_layers,
         )
 
         model = _DeepDTATrainer(
@@ -122,14 +123,15 @@ class _DeepDTA:
         pl.seed_everything(seed=self.config.General.random_seed, workers=True)
 
         # ---- set dataset ----
+        data_path = Path(self.config.Dataset.path, self.config.Dataset.name)
         train_dataset = TDCDataset(
-            name=self.config.Dataset.name, split="train", path=self.config.Dataset.path
+            name=self.config.Dataset.name, split="train", path=data_path, mode="deepdta"
         )
         valid_dataset = TDCDataset(
-            name=self.config.Dataset.name, split="valid", path=self.config.Dataset.path
+            name=self.config.Dataset.name, split="valid", path=data_path, mode="deepdta"
         )
         test_dataset = TDCDataset(
-            name=self.config.Dataset.name, split="test", path=self.config.Dataset.path
+            name=self.config.Dataset.name, split="test", path=data_path, mode="deepdta"
         )
 
         train_loader = DataLoader(

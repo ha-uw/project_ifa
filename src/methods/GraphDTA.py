@@ -6,6 +6,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from torch_geometric.data.lightning import LightningDataset
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
+from pathlib import Path
 from .configs import ConfigLoader
 from data.loading import TDCDataset
 from modules.decoders import MLP
@@ -110,7 +111,7 @@ class _GraphDTA:
         target_encoder = CNN(
             embedding_dim=self.config.Encoder.Target.embedding_dim,
             num_embeddings=self.config.Encoder.Target.num_embeddings,
-            filter_length=self.config.Encoder.Target.filter_length,
+            kernel_size=self.config.Encoder.Target.kernel_size,
             num_filters=self.config.Encoder.Target.num_filters,
             sequence_length=self.config.Encoder.Target.sequence_length,
         )
@@ -118,7 +119,7 @@ class _GraphDTA:
             dropout_rate=self.config.Decoder.dropout_rate,
             hidden_dim=self.config.Decoder.hidden_dim,
             in_dim=self.config.Decoder.in_dim,
-            include_decoder_layers=self.config.Decoder.include_decoder_layers,
+            num_fc_layers=self.config.Decoder.num_fc_layers,
             out_dim=self.config.Decoder.out_dim,
         )
         model = _GraphDTATrainer(
@@ -141,23 +142,21 @@ class _GraphDTA:
         pl.seed_everything(seed=self.config.General.random_seed, workers=True)
 
         # ---- set dataset ----
+        data_path = Path(self.config.Dataset.path, self.config.Dataset.name)
         train_dataset = TDCDataset(
             name=self.config.Dataset.name,
             split="train",
-            path=self.config.Dataset.path,
-            mode_drug="gcn",
+            path=data_path,
+            mode="graphdta",
         )
         valid_dataset = TDCDataset(
             name=self.config.Dataset.name,
             split="valid",
-            path=self.config.Dataset.path,
-            mode_drug="gcn",
+            path=data_path,
+            mode="graphdta",
         )
         test_dataset = TDCDataset(
-            name=self.config.Dataset.name,
-            split="test",
-            path=self.config.Dataset.path,
-            mode_drug="gcn",
+            name=self.config.Dataset.name, split="test", path=data_path, mode="graphdta"
         )
 
         pl_dataset = LightningDataset(

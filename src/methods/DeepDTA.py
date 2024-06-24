@@ -138,16 +138,19 @@ class _DeepDTA:
             dataset=train_dataset,
             shuffle=True,
             batch_size=self.config.Trainer.train_batch_size,
+            pin_memory=True,
         )
         valid_loader = DataLoader(
             dataset=valid_dataset,
-            shuffle=True,
+            shuffle=False,
             batch_size=self.config.Trainer.test_batch_size,
+            pin_memory=True,
         )
         test_loader = DataLoader(
             dataset=test_dataset,
-            shuffle=True,
+            shuffle=False,
             batch_size=self.config.Trainer.test_batch_size,
+            pin_memory=True,
         )
 
         # ---- set model ----

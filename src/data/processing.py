@@ -101,6 +101,7 @@ def tokenize_target(sequence: str, max_length: int = 1200) -> np.array:
     return tokenize_sequence(sequence.upper(), Tokens.CHARPROTSET, max_length)
 
 
+# WideDTA ----------------------------------------------------------------------
 def to_deepsmiles(smiles: str):
     converter = deepsmiles.Converter(rings=True, branches=True)
     deep_smiles = converter.encode(smiles)
@@ -108,25 +109,64 @@ def to_deepsmiles(smiles: str):
     return deep_smiles
 
 
-def seq_to_words(sequences_dict: dict, word_len: int) -> dict:
-    """
-    Splits each sequence in the input dictionary into substrings of a specified length.
+def seq_to_words(sequence: str, word_len: int):
 
-    Parameters:
-        sequences_dict (dict): A dictionary with keys as identifiers and values as sequences.
-        word_len (int): The length of each substring to split the sequences into.
+    words = ()
+    sequence_length = len(sequence)
+    for start_index in range(word_len):
+        for i in range(start_index, sequence_length, word_len):
+            substring = sequence[i : i + word_len]
+            if len(substring) == word_len:
+                words += (substring,)
 
-    Returns:
-        dict: A new dictionary with the same keys but with values being tuples of substrings.
-    """
-    split_dict = {}
-    for key, sequence in sequences_dict.items():
-        substrings = ()
-        sequence_length = len(sequence)
-        for start_index in range(word_len):
-            for index in range(start_index, sequence_length, word_len):
-                substring = sequence[index : index + word_len]
-                if len(substring) == word_len:
-                    substrings += (substring,)
-        split_dict[key] = substrings
-    return split_dict
+    return words
+
+
+# ------------------------------------------------------------------------------
+
+
+def one_hot_encode(x, allowable_set) -> np.array:
+    if x not in allowable_set:
+        logging.warning(f"Input {x} not in allowable set {allowable_set}.")
+        return np.zeros(len(allowable_set), dtype=int)
+
+    return np.array([x == s for s in allowable_set], dtype=int)
+
+
+# Original
+def onehot(x):
+    one_d = {}
+    ps1 = list(x.values())
+    p_set = set()
+    lens_p = [len(p) for p in ps1]
+    for p in ps1:
+        p_set = p_set.union(set(p))
+    char_to_int_p = dict((c, i) for i, c in enumerate(p_set))
+    int_to_char_p = dict((i, c) for i, c in enumerate(p_set))
+    # onehot_p = np.zeros((len(ps1), len(char_to_int_p), max(lens_p)))
+    for i, p in enumerate(ps1):
+        onehot_p = np.zeros((len(char_to_int_p), max(lens_p)))
+        for j, char in enumerate(p):
+            onehot_p[char_to_int_p[char], j] = 1.0
+        one_d[i] = onehot_p
+    return one_d
+
+
+def onehot_words(x):
+    one_d = {}
+    sequences = list(x.values())
+    unique_words = set()
+    for sequence in sequences:
+        unique_words = unique_words.union(set(sequence.split()))
+    word_to_int = {word: i for i, word in enumerate(unique_words)}
+
+    for i, sequence in enumerate(sequences):
+        words = sequence.split()
+        onehot_sequence = np.zeros((len(words), len(word_to_int)))
+        for j, word in enumerate(words):
+            if (
+                word in word_to_int
+            ):  # Check if the word is in the dictionary to handle out-of-vocabulary words
+                onehot_sequence[j, word_to_int[word]] = 1.0
+        one_d[i] = onehot_sequence
+    return one_d

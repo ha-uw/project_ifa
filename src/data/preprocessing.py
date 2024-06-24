@@ -126,7 +126,7 @@ class MotifFetcher:
         motif_file_path = Path(path, name.lower(), f"{name.lower()}_motifs.csv")
 
         if motif_file_path.is_file() and motif_file_path.stat().st_size > 0:
-            local_data = pd.read_csv(motif_file_path)
+            local_data = pd.read_csv(motif_file_path).fillna("")
             print("Motif file loaded successfully.")
             updated = self._update_motif_file(
                 data, motif_file_path=motif_file_path, local_data=local_data

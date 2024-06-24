@@ -5,7 +5,12 @@ from tdc.multi_pred import DTI
 from torch.utils import data
 from torch_geometric import data as pyg_data
 
-from .processing import tokenize_target, tokenize_smiles, smile_to_graph, to_deepsmiles
+from src.data import processing
+from .processing import (
+    tokenize_target,
+    tokenize_smiles,
+    smile_to_graph,
+)
 from .preprocessing import MotifFetcher
 
 
@@ -52,28 +57,20 @@ class TDCDataset(data.Dataset):
 
         self.data = self.data.get_split()[split]
 
-        if mode == "widedta":
-            self._load_motifs()
-
         self.drug_transform = drug_transform
         self.target_transform = target_transform
 
     def __len__(self):
         return len(self.data)
 
-    def _load_motifs(self):
-        mf = MotifFetcher()
-        motifs = mf.get_motifs(self.data, self.path, self.name)
-        self.data = pd.merge(self.data, motifs, on="Target_ID", how="left")
-
-        return
-
+    # DeepDTA
     def _deepdta(self, drug, target):
         drug = torch.LongTensor(tokenize_smiles(drug))
         target = torch.LongTensor(tokenize_target(target))
 
         return drug, target
 
+    # GraphDTA
     def _graphdta(self, drug, target, label):
         c_size, features, edge_index = smile_to_graph(drug)
         drug = pyg_data.Data(
@@ -85,15 +82,6 @@ class TDCDataset(data.Dataset):
         target = torch.LongTensor(tokenize_target(target))
 
         return drug, target
-
-    def _widedta(self, drug, target, motif):
-        drug = to_deepsmiles(drug)
-
-        drug = torch.LongTensor(tokenize_smiles(drug))
-        target = torch.LongTensor(tokenize_target(target))
-        motif = torch.LongTensor(tokenize_target(motif))
-
-        return drug, target, motif
 
     def _process_data(self, index):
         drug, target, label = (
@@ -120,11 +108,8 @@ class TDCDataset(data.Dataset):
 
                 return drug, target, label
 
-            case "widedta":
-                motif = self.data["Motif"][index]
-                drug, target, motif = self._widedta(drug, target, motif)
-
-                return drug, target, motif, label
-
     def __getitem__(self, index):
-        return self._process_data(index)
+        label = self.data["Label"][index]
+        drug, target, motif = self._process_data(index)
+
+        return drug, target, motif, label

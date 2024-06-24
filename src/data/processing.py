@@ -110,21 +110,27 @@ def to_deepsmiles(smiles: str):
 
 
 def seq_to_words(sequence: str, word_len: int):
+    if isinstance(sequence, str):
+        words = ()
+        sequence_length = len(sequence)
+        for start_index in range(word_len):
+            for i in range(start_index, sequence_length, word_len):
+                substring = sequence[i : i + word_len]
+                if len(substring) == word_len:
+                    words += (substring,)
 
-    words = ()
-    sequence_length = len(sequence)
-    for start_index in range(word_len):
-        for i in range(start_index, sequence_length, word_len):
-            substring = sequence[i : i + word_len]
-            if len(substring) == word_len:
-                words += (substring,)
+        return words
+    else:
+        return sequence
 
-    return words
+
+def make_words_set(sequences: list[tuple]):
+    words_set = set(word for seq in sequences for word in seq)
+
+    return words_set
 
 
 # ------------------------------------------------------------------------------
-
-
 def one_hot_encode(x, allowable_set) -> np.array:
     if x not in allowable_set:
         logging.warning(f"Input {x} not in allowable set {allowable_set}.")
@@ -133,40 +139,14 @@ def one_hot_encode(x, allowable_set) -> np.array:
     return np.array([x == s for s in allowable_set], dtype=int)
 
 
-# Original
-def onehot(x):
-    one_d = {}
-    ps1 = list(x.values())
-    p_set = set()
-    lens_p = [len(p) for p in ps1]
-    for p in ps1:
-        p_set = p_set.union(set(p))
-    char_to_int_p = dict((c, i) for i, c in enumerate(p_set))
-    int_to_char_p = dict((i, c) for i, c in enumerate(p_set))
-    # onehot_p = np.zeros((len(ps1), len(char_to_int_p), max(lens_p)))
-    for i, p in enumerate(ps1):
-        onehot_p = np.zeros((len(char_to_int_p), max(lens_p)))
-        for j, char in enumerate(p):
-            onehot_p[char_to_int_p[char], j] = 1.0
-        one_d[i] = onehot_p
-    return one_d
+def one_hot_words(x, allowable_set, length: int):
+    word_to_int = {word: i + 1 for i, word in enumerate(allowable_set)}
+    indices_sequence = np.zeros(length, dtype=int)
 
+    for idx, word in enumerate(x):
+        if word in word_to_int:
+            indices_sequence[idx] = word_to_int[word]
+        else:
+            indices_sequence[idx] = 0
 
-def onehot_words(x):
-    one_d = {}
-    sequences = list(x.values())
-    unique_words = set()
-    for sequence in sequences:
-        unique_words = unique_words.union(set(sequence.split()))
-    word_to_int = {word: i for i, word in enumerate(unique_words)}
-
-    for i, sequence in enumerate(sequences):
-        words = sequence.split()
-        onehot_sequence = np.zeros((len(words), len(word_to_int)))
-        for j, word in enumerate(words):
-            if (
-                word in word_to_int
-            ):  # Check if the word is in the dictionary to handle out-of-vocabulary words
-                onehot_sequence[j, word_to_int[word]] = 1.0
-        one_d[i] = onehot_sequence
-    return one_d
+    return indices_sequence

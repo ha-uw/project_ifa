@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+import pandas as pd
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 from pytorch_lightning.callbacks import ModelCheckpoint
@@ -8,6 +9,14 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
 from .configs import ConfigLoader
 from data.loading import TDCDataset
+from data.preprocessing import MotifFetcher
+from data.processing import (
+    to_deepsmiles,
+    seq_to_words,
+    make_words_set,
+    one_hot_words,
+)
+
 from modules.encoders import WideCNN
 from modules.decoders import MLP
 from modules.trainers import BaseDTATrainer
@@ -27,6 +36,112 @@ class WideDTA:
 
     def test(self):
         raise NotImplementedError("This will be implemented soon.")
+
+
+class _WideDTADataHandler(TDCDataset):
+    words_sets = {
+        "Drug": {},
+        "Target": {},
+        "Motif": {},
+    }
+    drug_max_len: int
+    target_max_len: int
+    motif_max_len: int
+
+    def __init__(
+        self,
+        dataset_name: str,
+        split="train",
+        path="./data",
+        label_to_log=True,
+        drug_transform=None,
+        target_transform=None,
+    ):
+        super().__init__(
+            name=dataset_name,
+            split=split,
+            path=path,
+            label_to_log=label_to_log,
+            drug_transform=drug_transform,
+            target_transform=target_transform,
+            mode="widedta",
+        )
+
+        self._preprocess_data()
+
+    def _preprocess_data(self):
+        try:
+            self._load_motifs()
+            self._smiles_to_deep()
+            self._convert_seqs_to_words()
+            self._make_words_set()
+        except Exception as e:
+            print("Error preprocessing data:", e)
+
+        return
+
+    def _load_motifs(self):
+        mf = MotifFetcher()
+        motifs = mf.get_motifs(self.data, self.path, self.name)
+        self.data = pd.merge(self.data, motifs, on=["Target_ID"], how="left").dropna()
+
+    def _smiles_to_deep(self):
+        self.data["Drug"] = self.data["Drug"].apply(lambda x: to_deepsmiles(x))
+
+    def _convert_seqs_to_words(self):
+        self.data["Drug"] = self.data["Drug"].apply(
+            lambda x: seq_to_words(x, word_len=8)
+        )
+
+        self.data["Target"] = self.data["Target"].apply(
+            lambda x: seq_to_words(x, word_len=3)
+        )
+
+        self.data["Motif"] = self.data["Motif"].apply(
+            lambda x: seq_to_words(x, word_len=3)
+        )
+
+        self.drug_max_len = self.data["Drug"].str.len().max()
+        self.target_max_len = self.data["Target"].str.len().max()
+        self.motif_max_len = self.data["Motif"].str.len().max()
+
+    def _make_words_set(self):
+        self.words_sets["Drug"] = make_words_set(self.data["Drug"])
+        self.words_sets["Target"] = make_words_set(self.data["Target"])
+        self.words_sets["Motif"] = make_words_set(self.data["Motif"])
+
+    def _fetch_data(self, index):
+        motif = self.data["Motif"][index]
+
+        drug = one_hot_words(
+            self.data["Drug"][index],
+            allowable_set=self.words_sets["Drug"],
+            length=self.drug_max_len,
+        )
+        drug = torch.LongTensor(drug)
+
+        target = one_hot_words(
+            self.data["Target"][index],
+            allowable_set=self.words_sets["Target"],
+            length=self.target_max_len,
+        )
+        target = torch.LongTensor(target)
+
+        motif = one_hot_words(
+            self.data["Motif"][index],
+            allowable_set=self.words_sets["Motif"],
+            length=self.motif_max_len,
+        )
+        motif = torch.LongTensor(motif)
+
+        return drug, target, motif
+
+    def __getitem__(self, index):
+
+        label = self.data["Y"][index]
+        drug, target, motif = self._fetch_data(index)
+
+        return drug, target, motif, label
 
 
 class _WideDTATrainer(BaseDTATrainer):
@@ -125,6 +240,7 @@ class _WideDTA:
         model = _WideDTATrainer(
             drug_encoder=drug_encoder,
             target_encoder=target_encoder,
+            motif_encoder=motif_encoder,
             decoder=decoder,
             lr=self.config.Trainer.learning_rate,
             ci_metric=self.config.Trainer.ci_metric,
@@ -142,13 +258,13 @@ class _WideDTA:
         pl.seed_everything(seed=self.config.General.random_seed, workers=True)
 
         # ---- set dataset ----
-        train_dataset = TDCDataset(
+        train_dataset = _WideDTADataHandler(
             name=self.config.Dataset.name, split="train", path=self.config.Dataset.path
         )
-        valid_dataset = TDCDataset(
+        valid_dataset = _WideDTADataHandler(
             name=self.config.Dataset.name, split="valid", path=self.config.Dataset.path
         )
-        test_dataset = TDCDataset(
+        test_dataset = _WideDTADataHandler(
             name=self.config.Dataset.name, split="test", path=self.config.Dataset.path
         )
 

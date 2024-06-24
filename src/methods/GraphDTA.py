@@ -4,11 +4,13 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch_geometric.data.lightning import LightningDataset
+from torch_geometric import data as pyg_data
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
 from pathlib import Path
 from .configs import ConfigLoader
 from data.loading import TDCDataset
+from data.processing import smile_to_graph, tokenize_target
 from modules.decoders import MLP
 from modules.encoders import CNN, GAT_GCN, GAT, GCN, GIN
 from modules.trainers import BaseDTATrainer
@@ -31,6 +33,54 @@ class GraphDTA:
 
     def predict(self):
         raise NotImplementedError
+
+
+class GraphDTADataHandler(TDCDataset):
+    def __init__(
+        self,
+        dataset_name: str,
+        split="train",
+        path="./data",
+        label_to_log=True,
+        drug_transform=None,
+        target_transform=None,
+    ):
+        super().__init__(
+            name=dataset_name,
+            split=split,
+            path=path,
+            label_to_log=label_to_log,
+            drug_transform=drug_transform,
+            target_transform=target_transform,
+        )
+
+    def _graphdta(self, drug, target, label):
+        c_size, features, edge_index = smile_to_graph(drug)
+        drug = pyg_data.Data(
+            x=torch.Tensor(features),
+            edge_index=torch.LongTensor(edge_index).transpose(1, 0),
+            y=torch.Tensor([label]),
+        )
+        drug.__setitem__("c_size", torch.LongTensor([c_size]))
+        target = torch.LongTensor(tokenize_target(target))
+
+        return drug, target
+
+    def _fetch_data(self, index):
+        drug, target, label = (
+            self.data["Drug"][index],
+            self.data["Target"][index],
+            self.data["Y"][index],
+        )
+
+        label = torch.FloatTensor([label])
+        drug, target = self._graphdta(drug, target, label)
+
+        return drug, target, label
+
+    def __getitem__(self, index):
+        drug, target, label = self._fetch_data(index)
+        return drug, target, label
 
 
 class GraphDTATrainer(BaseDTATrainer):
@@ -144,20 +194,20 @@ class _GraphDTA:
 
         # ---- set dataset ----
         data_path = Path(self.config.Dataset.path, self.config.Dataset.name)
-        train_dataset = TDCDataset(
-            name=self.config.Dataset.name,
+        train_dataset = GraphDTADataHandler(
+            dataset_name=self.config.Dataset.name,
             split="train",
             path=data_path,
-            mode="graphdta",
         )
-        valid_dataset = TDCDataset(
-            name=self.config.Dataset.name,
+        valid_dataset = GraphDTADataHandler(
+            dataset_name=self.config.Dataset.name,
             split="valid",
             path=data_path,
-            mode="graphdta",
         )
-        test_dataset = TDCDataset(
-            name=self.config.Dataset.name, split="test", path=data_path, mode="graphdta"
+        test_dataset = GraphDTADataHandler(
+            dataset_name=self.config.Dataset.name,
+            split="test",
+            path=data_path,
         )
 
         pl_dataset = LightningDataset(

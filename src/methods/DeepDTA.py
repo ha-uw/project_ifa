@@ -5,10 +5,11 @@ from torch.utils.data import DataLoader
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
-
 from pathlib import Path
+
 from .configs import ConfigLoader
 from data.loading import TDCDataset
+from data.processing import tokenize_smiles, tokenize_target
 from modules.encoders import CNN
 from modules.decoders import MLP
 from modules.trainers import BaseDTATrainer
@@ -28,6 +29,48 @@ class DeepDTA:
 
     def test(self):
         raise NotImplementedError("This will be implemented soon.")
+
+
+class DeepDTADataHandler(TDCDataset):
+    def __init__(
+        self,
+        dataset_name: str,
+        split="train",
+        path="./data",
+        label_to_log=True,
+        drug_transform=None,
+        target_transform=None,
+    ):
+        super().__init__(
+            name=dataset_name,
+            split=split,
+            path=path,
+            label_to_log=label_to_log,
+            drug_transform=drug_transform,
+            target_transform=target_transform,
+        )
+
+    def _deepdta(self, drug, target):
+        drug = torch.LongTensor(tokenize_smiles(drug))
+        target = torch.LongTensor(tokenize_target(target))
+
+        return drug, target
+
+    def _fetch_data(self, index):
+        drug, target, label = (
+            self.data["Drug"][index],
+            self.data["Target"][index],
+            self.data["Y"][index],
+        )
+
+        label = torch.FloatTensor([label])
+        drug, target = self._deepdta(drug, target)
+
+        return drug, target, label
+
+    def __getitem__(self, index):
+        drug, target, label = self._fetch_data(index)
+        return drug, target, label
 
 
 class _DeepDTATrainer(BaseDTATrainer):
@@ -124,14 +167,20 @@ class _DeepDTA:
 
         # ---- set dataset ----
         data_path = Path(self.config.Dataset.path, self.config.Dataset.name)
-        train_dataset = TDCDataset(
-            name=self.config.Dataset.name, split="train", path=data_path, mode="deepdta"
+        train_dataset = DeepDTADataHandler(
+            dataset_name=self.config.Dataset.name,
+            split="train",
+            path=data_path,
         )
-        valid_dataset = TDCDataset(
-            name=self.config.Dataset.name, split="valid", path=data_path, mode="deepdta"
+        valid_dataset = DeepDTADataHandler(
+            dataset_name=self.config.Dataset.name,
+            split="valid",
+            path=data_path,
         )
-        test_dataset = TDCDataset(
-            name=self.config.Dataset.name, split="test", path=data_path, mode="deepdta"
+        test_dataset = DeepDTADataHandler(
+            dataset_name=self.config.Dataset.name,
+            split="test",
+            path=data_path,
         )
 
         train_loader = DataLoader(

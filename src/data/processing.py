@@ -147,6 +147,6 @@ def one_hot_words(x, allowable_set, length: int):
         if word in word_to_int:
             indices_sequence[idx] = word_to_int[word]
         else:
-            indices_sequence[idx] = 0
+            indices_sequence[idx] = 0.0
 
     return indices_sequence

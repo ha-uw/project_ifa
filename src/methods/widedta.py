@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 import pandas as pd
 import pytorch_lightning as pl
@@ -8,19 +9,19 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
 from .configs import ConfigLoader
-from data.loading import TDCDataset
-from data.preprocessing import MotifFetcher
-from data.processing import (
+from src.data.loading import TDCDataset
+from src.data.preprocessing import MotifFetcher
+from src.data.processing import (
     to_deepsmiles,
     seq_to_words,
     make_words_set,
     one_hot_words,
 )
 
-from modules.encoders import WideCNN
-from modules.decoders import MLP
-from modules.trainers import BaseDTATrainer
-from data.evaluation import concordance_index
+from src.modules.encoders import WideCNN
+from src.modules.decoders import MLP
+from src.modules.trainers import BaseDTATrainer
+from src.data.evaluation import concordance_index
 
 
 # =============================== Code ==================================
@@ -64,7 +65,6 @@ class _WideDTADataHandler(TDCDataset):
             label_to_log=label_to_log,
             drug_transform=drug_transform,
             target_transform=target_transform,
-            mode="widedta",
         )
 
         self._preprocess_data()
@@ -75,6 +75,7 @@ class _WideDTADataHandler(TDCDataset):
             self._smiles_to_deep()
             self._convert_seqs_to_words()
             self._make_words_set()
+            self.data.reset_index(drop=True, inplace=True)
         except Exception as e:
             print("Error preprocessing data:", e)
 
@@ -111,40 +112,45 @@ class _WideDTADataHandler(TDCDataset):
         self.words_sets["Motif"] = make_words_set(self.data["Motif"])
 
     def _fetch_data(self, index):
-        motif = self.data["Motif"][index]
+        drug, target, motif, label = (
+            self.data["Drug"][index],
+            self.data["Target"][index],
+            self.data["Motif"][index],
+            self.data["Y"][index],
+        )
 
         drug = one_hot_words(
-            self.data["Drug"][index],
+            drug,
             allowable_set=self.words_sets["Drug"],
             length=self.drug_max_len,
         )
         drug = torch.LongTensor(drug)
 
         target = one_hot_words(
-            self.data["Target"][index],
+            target,
             allowable_set=self.words_sets["Target"],
             length=self.target_max_len,
         )
         target = torch.LongTensor(target)
 
         motif = one_hot_words(
-            self.data["Motif"][index],
+            motif,
             allowable_set=self.words_sets["Motif"],
             length=self.motif_max_len,
         )
         motif = torch.LongTensor(motif)
 
-        return drug, target, motif
+        label = torch.FloatTensor([label])
+
+        return drug, target, motif, label
 
     def __getitem__(self, index):
-
-        label = self.data["Y"][index]
-        drug, target, motif = self._fetch_data(index)
+        drug, target, motif, label = self._fetch_data(index)
 
         return drug, target, motif, label
 
 
-class _WideDTATrainer(BaseDTATrainer):
+class _WideDTATrainer(pl.LightningModule):
     """ """
 
     def __init__(
@@ -153,13 +159,26 @@ class _WideDTATrainer(BaseDTATrainer):
         target_encoder,
         motif_encoder,
         decoder,
-        lr,
-        ci_metric,
+        lr=0.003,
+        ci_metric=False,
         **kwargs
     ):
-        super().__init__(drug_encoder, target_encoder, decoder, lr, ci_metric, **kwargs)
 
+        super(_WideDTATrainer, self).__init__()
+        # self.save_hyperparameters()
+        self.lr = lr
+        self.ci_metric = ci_metric
+        self.drug_encoder = drug_encoder
+        self.target_encoder = target_encoder
         self.motif_encoder = motif_encoder
+        self.decoder = decoder
+
+    def configure_optimizers(self):
+        """
+        Config adam as default optimizer.
+        """
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
+        return optimizer
 
     def forward(self, x_drug, x_target, x_motif):
         """
@@ -178,15 +197,44 @@ class _WideDTATrainer(BaseDTATrainer):
 
         return output
 
-    def validation_step(self, valid_batch, batch_idx):
-        x_drug, x_target, y = valid_batch
-        y_pred = self(x_drug, x_target)
+    def training_step(self, train_batch):
+        """
+        Compute and return the training loss on one step
+        """
+        x_drug, x_target, x_motif, y = train_batch
+        y_pred = self(x_drug, x_target, x_motif)
+        loss = F.mse_loss(y_pred, y.view(-1, 1))
+        if self.ci_metric:
+            ci = concordance_index(y, y_pred)
+            self.logger.log_metrics({"train_step_ci": ci}, self.global_step)
+        self.logger.log_metrics({"train_step_loss": loss}, self.global_step)
+        self.log("train_step_loss_2", loss, on_epoch=True, on_step=False, prog_bar=True)
+
+        return loss
+
+    def validation_step(self, valid_batch):
+        x_drug, x_target, x_motif, y = valid_batch
+        y_pred = self(x_drug, x_target, x_motif)
         loss = F.mse_loss(y_pred, y.view(-1, 1))
 
         if self.ci_metric:
             ci = concordance_index(y, y_pred)
             self.log("valid_ci", ci, on_epoch=True, on_step=False)
         self.log("valid_loss", loss, on_epoch=True, on_step=False)
+
+        return loss
+
+    def test_step(self, test_batch):
+        """
+        Compute and return the test loss on one step
+        """
+        x_drug, x_target, x_motif, y = test_batch
+        y_pred = self(x_drug, x_target, x_motif)
+        loss = F.mse_loss(y_pred, y.view(-1, 1))
+        if self.ci_metric:
+            ci = concordance_index(y, y_pred)
+            self.log("test_ci", ci, on_epoch=True, on_step=False)
+        self.log("test_loss", loss, on_epoch=True, on_step=False, prog_bar=True)
 
         return loss
 
@@ -206,24 +254,18 @@ class _WideDTA:
 
     def make_model(self):
         drug_encoder = WideCNN(
-            num_embeddings=self.config.Encoder.Drug.num_embeddings,
-            embedding_dim=self.config.Encoder.Drug.embedding_dim,
             sequence_length=self.config.Encoder.Drug.sequence_length,
             num_filters=self.config.Encoder.Drug.num_filters,
             kernel_size=self.config.Encoder.Drug.kernel_size,
         )
 
         target_encoder = WideCNN(
-            num_embeddings=self.config.Encoder.Target.num_embeddings,
-            embedding_dim=self.config.Encoder.Target.embedding_dim,
             sequence_length=self.config.Encoder.Target.sequence_length,
             num_filters=self.config.Encoder.Target.num_filters,
             kernel_size=self.config.Encoder.Target.kernel_size,
         )
 
         motif_encoder = WideCNN(
-            num_embeddings=self.config.Encoder.Target.num_embeddings,
-            embedding_dim=self.config.Encoder.Target.embedding_dim,
             sequence_length=self.config.Encoder.Target.sequence_length,
             num_filters=self.config.Encoder.Target.num_filters,
             kernel_size=self.config.Encoder.Target.kernel_size,
@@ -232,10 +274,15 @@ class _WideDTA:
         decoder = MLP(
             in_dim=self.config.Decoder.in_dim,
             hidden_dim=self.config.Decoder.hidden_dim,
-            out_dim=self.config.Decoder.out_dim,
             dropout_rate=self.config.Decoder.dropout_rate,
             num_fc_layers=3,
         )
+
+        # Custom MLP
+        fc1 = nn.Linear(self.config.Decoder.in_dim, self.config.Decoder.hidden_dim)
+        fc2 = nn.Linear(self.config.Decoder.hidden_dim, 10)
+        fc3 = nn.Linear(10, 1)
+        decoder.fc_layers = nn.ModuleList([fc1, fc2, fc3])
 
         model = _WideDTATrainer(
             drug_encoder=drug_encoder,
@@ -259,13 +306,19 @@ class _WideDTA:
 
         # ---- set dataset ----
         train_dataset = _WideDTADataHandler(
-            name=self.config.Dataset.name, split="train", path=self.config.Dataset.path
+            dataset_name=self.config.Dataset.name,
+            split="train",
+            path=self.config.Dataset.path,
         )
         valid_dataset = _WideDTADataHandler(
-            name=self.config.Dataset.name, split="valid", path=self.config.Dataset.path
+            dataset_name=self.config.Dataset.name,
+            split="valid",
+            path=self.config.Dataset.path,
         )
         test_dataset = _WideDTADataHandler(
-            name=self.config.Dataset.name, split="test", path=self.config.Dataset.path
+            dataset_name=self.config.Dataset.name,
+            split="test",
+            path=self.config.Dataset.path,
         )
 
         train_loader = DataLoader(
@@ -275,12 +328,12 @@ class _WideDTA:
         )
         valid_loader = DataLoader(
             dataset=valid_dataset,
-            shuffle=True,
+            shuffle=False,
             batch_size=self.config.Trainer.test_batch_size,
         )
         test_loader = DataLoader(
             dataset=test_dataset,
-            shuffle=True,
+            shuffle=False,
             batch_size=self.config.Trainer.test_batch_size,
         )
 

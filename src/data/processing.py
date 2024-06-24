@@ -108,7 +108,7 @@ def to_deepsmiles(smiles: str):
     return deep_smiles
 
 
-def split_sequences(sequences_dict: dict, word_len: int) -> dict:
+def seq_to_words(sequences_dict: dict, word_len: int) -> dict:
     """
     Splits each sequence in the input dictionary into substrings of a specified length.
 

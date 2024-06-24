@@ -3,7 +3,6 @@ from methods.graphdta import GraphDTA
 from data.loading import TDCDataset
 from data.preprocessing import MotifFetcher
 from time import sleep
-import torch
 
 from torch import set_float32_matmul_precision
 

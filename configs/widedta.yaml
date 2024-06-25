@@ -11,30 +11,31 @@ Dataset:
   path: "data"
 
 Encoder:
+  num_filters: 32
+  kernel_size: 2
+  embedding_dim: 128
+
   Drug:
-    sequence_length: 10
-    num_filters: 16
-    kernel_size: 2
+    num_embeddings: 1993
+    sequence_length: 85
   Target:
-    sequence_length: 6729
-    num_filters: 16
-    kernel_size: 2
+    num_embeddings: 7932
+    sequence_length: 1000
   Motif:
-    sequence_length: 1076
-    num_filters: 16
-    kernel_size: 2
+    num_embeddings: 2344
+    sequence_length: 500
 
 Decoder:
   # MPL
-  in_dim: 5120
+  in_dim: 1024
   hidden_dim: 512
-  dropout_rate: 0.1
+  dropout_rate: 0.3
   num_fc_layers: 3
 
 Trainer:
   ci_metric: True
-  train_batch_size: 256
-  test_batch_size: 256
+  train_batch_size: 1
+  test_batch_size: 1
   min_epochs: 0
   max_epochs: 3
   learning_rate: 0.003

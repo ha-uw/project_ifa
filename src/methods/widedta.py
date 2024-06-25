@@ -9,19 +9,19 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
 from .configs import ConfigLoader
-from src.data.loading import TDCDataset
-from src.data.preprocessing import MotifFetcher
-from src.data.processing import (
+from data.loading import TDCDataset
+from data.preprocessing import MotifFetcher
+from data.processing import (
     to_deepsmiles,
     seq_to_words,
     make_words_set,
     one_hot_words,
 )
 
-from src.modules.encoders import WideCNN
-from src.modules.decoders import MLP
-from src.modules.trainers import BaseDTATrainer
-from src.data.evaluation import concordance_index
+from modules.encoders import WideCNN
+from modules.decoders import MLP
+from modules.trainers import BaseDTATrainer
+from data.evaluation import concordance_index
 
 
 # =============================== Code ==================================
@@ -40,14 +40,16 @@ class WideDTA:
 
 
 class _WideDTADataHandler(TDCDataset):
+    MAX_DRUG_LEN = 85
+    MAX_TARGET_LEN = 1000
+    MAX_MOTIF_LEN = 500
+
     words_sets = {
         "Drug": {},
         "Target": {},
         "Motif": {},
     }
-    drug_max_len: int
-    target_max_len: int
-    motif_max_len: int
+    proc_data: pd.DataFrame
 
     def __init__(
         self,
@@ -67,10 +69,15 @@ class _WideDTADataHandler(TDCDataset):
             target_transform=target_transform,
         )
 
+        self.RAW_DATA = self.data.copy()
         self._preprocess_data()
+
+    def __len__(self):
+        return len(self.data)
 
     def _preprocess_data(self):
         try:
+            self._filter_data()
             self._load_motifs()
             self._smiles_to_deep()
             self._convert_seqs_to_words()
@@ -79,32 +86,40 @@ class _WideDTADataHandler(TDCDataset):
         except Exception as e:
             print("Error preprocessing data:", e)
 
-        return
+    def _filter_data(self):
+        df = self.data
+
+        self.data = df
 
     def _load_motifs(self):
         mf = MotifFetcher()
         motifs = mf.get_motifs(self.data, self.path, self.name)
-        self.data = pd.merge(self.data, motifs, on=["Target_ID"], how="left").dropna()
+
+        # Merget dfs and drop NaN
+        self.data = pd.merge(
+            self.RAW_DATA, motifs, on=["Target_ID"], how="left"
+        ).dropna()
+
+        self.data = self.data[self.data["Motif"].str.len() <= self.MAX_MOTIF_LEN]
+
+        # Reorder columns
+        self.data = self.data[["Drug_ID", "Drug", "Target_ID", "Target", "Motif", "Y"]]
 
     def _smiles_to_deep(self):
         self.data["Drug"] = self.data["Drug"].apply(lambda x: to_deepsmiles(x))
 
     def _convert_seqs_to_words(self):
         self.data["Drug"] = self.data["Drug"].apply(
-            lambda x: seq_to_words(x, word_len=8)
+            lambda x: seq_to_words(x, word_len=8, max_length=self.MAX_DRUG_LEN)
         )
 
         self.data["Target"] = self.data["Target"].apply(
-            lambda x: seq_to_words(x, word_len=3)
+            lambda x: seq_to_words(x, word_len=3, max_length=self.MAX_TARGET_LEN)
         )
 
         self.data["Motif"] = self.data["Motif"].apply(
-            lambda x: seq_to_words(x, word_len=3)
+            lambda x: seq_to_words(x, word_len=3, max_length=self.MAX_MOTIF_LEN)
         )
-
-        self.drug_max_len = self.data["Drug"].str.len().max()
-        self.target_max_len = self.data["Target"].str.len().max()
-        self.motif_max_len = self.data["Motif"].str.len().max()
 
     def _make_words_set(self):
         self.words_sets["Drug"] = make_words_set(self.data["Drug"])
@@ -122,21 +137,21 @@ class _WideDTADataHandler(TDCDataset):
         drug = one_hot_words(
             drug,
             allowable_set=self.words_sets["Drug"],
-            length=self.drug_max_len,
+            length=self.MAX_DRUG_LEN,
         )
         drug = torch.LongTensor(drug)
 
         target = one_hot_words(
             target,
             allowable_set=self.words_sets["Target"],
-            length=self.target_max_len,
+            length=self.MAX_TARGET_LEN,
         )
         target = torch.LongTensor(target)
 
         motif = one_hot_words(
             motif,
             allowable_set=self.words_sets["Motif"],
-            length=self.motif_max_len,
+            length=self.MAX_MOTIF_LEN,
         )
         motif = torch.LongTensor(motif)
 
@@ -202,6 +217,7 @@ class _WideDTATrainer(pl.LightningModule):
         Compute and return the training loss on one step
         """
         x_drug, x_target, x_motif, y = train_batch
+
         y_pred = self(x_drug, x_target, x_motif)
         loss = F.mse_loss(y_pred, y.view(-1, 1))
         if self.ci_metric:
@@ -254,21 +270,24 @@ class _WideDTA:
 
     def make_model(self):
         drug_encoder = WideCNN(
+            num_embeddings=self.config.Encoder.Drug.num_embeddings,
             sequence_length=self.config.Encoder.Drug.sequence_length,
-            num_filters=self.config.Encoder.Drug.num_filters,
-            kernel_size=self.config.Encoder.Drug.kernel_size,
+            num_filters=self.config.Encoder.num_filters,
+            kernel_size=self.config.Encoder.kernel_size,
         )
 
         target_encoder = WideCNN(
+            num_embeddings=self.config.Encoder.Target.num_embeddings,
             sequence_length=self.config.Encoder.Target.sequence_length,
-            num_filters=self.config.Encoder.Target.num_filters,
-            kernel_size=self.config.Encoder.Target.kernel_size,
+            num_filters=self.config.Encoder.num_filters,
+            kernel_size=self.config.Encoder.kernel_size,
         )
 
         motif_encoder = WideCNN(
-            sequence_length=self.config.Encoder.Target.sequence_length,
-            num_filters=self.config.Encoder.Target.num_filters,
-            kernel_size=self.config.Encoder.Target.kernel_size,
+            num_embeddings=self.config.Encoder.Motif.num_embeddings,
+            sequence_length=self.config.Encoder.Motif.sequence_length,
+            num_filters=self.config.Encoder.num_filters,
+            kernel_size=self.config.Encoder.kernel_size,
         )
 
         decoder = MLP(
@@ -279,9 +298,9 @@ class _WideDTA:
         )
 
         # Custom MLP
-        fc1 = nn.Linear(self.config.Decoder.in_dim, self.config.Decoder.hidden_dim)
-        fc2 = nn.Linear(self.config.Decoder.hidden_dim, 10)
-        fc3 = nn.Linear(10, 1)
+        fc1 = nn.Linear(self.config.Decoder.in_dim, self.config.Decoder.in_dim)
+        fc2 = nn.Linear(self.config.Decoder.in_dim, self.config.Decoder.hidden_dim)
+        fc3 = nn.Linear(self.config.Decoder.hidden_dim, 1)
         decoder.fc_layers = nn.ModuleList([fc1, fc2, fc3])
 
         model = _WideDTATrainer(
@@ -336,6 +355,8 @@ class _WideDTA:
             shuffle=False,
             batch_size=self.config.Trainer.test_batch_size,
         )
+
+        self.TRAIN_WORDSET_LEN = 125
 
         # ---- set model ----
         if not hasattr(self, "model") or self.model is None:

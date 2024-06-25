@@ -109,19 +109,21 @@ def to_deepsmiles(smiles: str):
     return deep_smiles
 
 
-def seq_to_words(sequence: str, word_len: int):
-    if isinstance(sequence, str):
-        words = ()
-        sequence_length = len(sequence)
-        for start_index in range(word_len):
-            for i in range(start_index, sequence_length, word_len):
-                substring = sequence[i : i + word_len]
-                if len(substring) == word_len:
-                    words += (substring,)
+def seq_to_words(sequence: str, word_len: int, max_length: int):
+    words = ()
+    sequence_length = len(sequence)
+    count = 0
 
-        return words
-    else:
-        return sequence
+    for start_index in range(word_len):
+        for i in range(start_index, sequence_length, word_len):
+            if count >= max_length:
+                return words
+            substring = sequence[i : i + word_len]
+            if len(substring) == word_len:
+                words += (substring,)
+                count += 1
+
+    return words
 
 
 def make_words_set(sequences: list[tuple]):

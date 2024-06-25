@@ -65,10 +65,13 @@ class WideCNN(nn.Module):
     def __init__(
         self,
         sequence_length,
-        num_filters=16,
+        num_embeddings,
+        embedding_dim=128,
+        num_filters=32,
         kernel_size=2,
     ):
         super(WideCNN, self).__init__()
+        self.embedding = nn.Embedding(num_embeddings + 1, embedding_dim)
         self.conv1 = nn.Conv1d(
             in_channels=sequence_length,
             out_channels=num_filters,
@@ -86,6 +89,7 @@ class WideCNN(nn.Module):
         self.max_pool = nn.MaxPool1d(2, 2)
 
     def forward(self, x) -> tuple:
+        x = self.embedding(x)
         x = self.max_pool(F.relu(self.conv1(x)))
         x = self.max_pool(F.relu(self.conv2(x)))
         x_size = x.size(2) * x.size(1)

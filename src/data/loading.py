@@ -1,3 +1,4 @@
+import pandas as pd
 from pathlib import Path
 from tdc.multi_pred import DTI
 from torch.utils import data
@@ -15,6 +16,8 @@ class TDCDataset(data.Dataset):
          target_transform: Transform operation (default: None)
          y_log (bool): Whether convert y values to log space. (default: True)
     """
+
+    data: pd.DataFrame
 
     def __init__(
         self,

@@ -8,12 +8,13 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pathlib import Path
 
 from .configs import ConfigLoader
-from data.loading import TDCDataset
+
 from data.processing import tokenize_smiles, tokenize_target
+from data.evaluation import concordance_index
+from data.loading import TDCDataset
 from modules.encoders import CNN
 from modules.decoders import MLP
 from modules.trainers import BaseDTATrainer
-from data.evaluation import concordance_index
 
 
 # =============================== Code ==================================

@@ -10,7 +10,7 @@ if __name__ == "__main__":
 
     wd = WideDTA(
         config_file=r"C:\Users\raulc\code\projeto_ifá\configs\widedta.yaml",
-        fast_dev_run=True,
+        fast_dev_run=False,
     )
 
     wd.train()

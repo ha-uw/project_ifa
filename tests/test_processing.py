@@ -93,49 +93,19 @@ class TestSeqToWords(unittest.TestCase):
     def test_short_sequence(self):
         sequence = "MVKVYAPAS"
         word_len = 3
-        expected = {
-            "MVK",
-            "VKV",
-            "KVY",
-            "VYA",
-            "YAP",
-            "APA",
-            "PAS",
-        }
-        result = set(processing.seq_to_words(sequence, word_len))
+        expected = ("MVK", "VYA", "PAS", "VKV", "YAP", "KVY", "APA")
+        result = processing.seq_to_words(sequence, word_len, max_length=10)
         self.assertEqual(result, expected)
 
     def test_longer_sequence(self):
         sequence = "MVKVYAPASSANMSVGFDVLGAAVTPVD"
         word_len = 4
-        expected = {
+        expected = (
             "MVKV",
-            "VKVY",
-            "KVYA",
-            "VYAP",
             "YAPA",
-            "APAS",
-            "PASS",
-            "ASSA",
             "SSAN",
-            "SANM",
-            "ANMS",
-            "NMSV",
-            "MSVG",
-            "SVGF",
-            "VGFD",
-            "GFDV",
-            "FDVL",
-            "DVLG",
-            "VLGA",
-            "LGAA",
-            "GAAV",
-            "AAVT",
-            "AVTP",
-            "VTPV",
-            "TPVD",
-        }
-        result = set(processing.seq_to_words(sequence, word_len))
+        )
+        result = processing.seq_to_words(sequence, word_len, max_length=3)
         self.assertEqual(result, expected)
 
 

@@ -1,5 +1,5 @@
 General:
-  fast_dev_run: True
+  fast_dev_run: False
   random_seed: 42
   output_dim: 96
   early_stop: False

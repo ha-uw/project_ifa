@@ -298,7 +298,7 @@ class _WideDTA:
         )
 
         # Custom MLP
-        fc1 = nn.Linear(self.config.Decoder.in_dim, self.config.Decoder.in_dim)
+        fc1 = nn.Linear(6144, self.config.Decoder.in_dim)
         fc2 = nn.Linear(self.config.Decoder.in_dim, self.config.Decoder.hidden_dim)
         fc3 = nn.Linear(self.config.Decoder.hidden_dim, 1)
         decoder.fc_layers = nn.ModuleList([fc1, fc2, fc3])

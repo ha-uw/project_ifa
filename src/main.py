@@ -13,4 +13,9 @@ if __name__ == "__main__":
         fast_dev_run=False,
     )
 
-    wd.train()
+    dd = DeepDTA(
+        config_file=r"C:\Users\raulc\code\projeto_ifá\configs\deepdta.yaml",
+        fast_dev_run=False,
+    )
+
+    dd.train()

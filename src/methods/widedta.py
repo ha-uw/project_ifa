@@ -7,6 +7,8 @@ from torch.utils.data import DataLoader
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+from pathlib import Path
+import json
 
 from .configs import ConfigLoader
 from data.loading import TDCDataset
@@ -14,13 +16,12 @@ from data.preprocessing import MotifFetcher
 from data.processing import (
     to_deepsmiles,
     seq_to_words,
-    make_words_set,
+    make_words_dict,
     one_hot_words,
 )
 
 from modules.encoders import WideCNN
 from modules.decoders import MLP
-from modules.trainers import BaseDTATrainer
 from data.evaluation import concordance_index
 
 
@@ -43,13 +44,9 @@ class _WideDTADataHandler(TDCDataset):
     MAX_DRUG_LEN = 85
     MAX_TARGET_LEN = 1000
     MAX_MOTIF_LEN = 500
+    RAW_DATA: pd.DataFrame
 
-    words_sets = {
-        "Drug": {},
-        "Target": {},
-        "Motif": {},
-    }
-    proc_data: pd.DataFrame
+    word_to_int = {"Drug": {}, "Target": {}, "Motif": {}}
 
     def __init__(
         self,
@@ -81,15 +78,14 @@ class _WideDTADataHandler(TDCDataset):
             self._load_motifs()
             self._smiles_to_deep()
             self._convert_seqs_to_words()
-            self._make_words_set()
+            self._load_words_dict()
             self.data.reset_index(drop=True, inplace=True)
         except Exception as e:
             print("Error preprocessing data:", e)
+            raise Exception(e)
 
     def _filter_data(self):
-        df = self.data
-
-        self.data = df
+        pass
 
     def _load_motifs(self):
         mf = MotifFetcher()
@@ -99,8 +95,6 @@ class _WideDTADataHandler(TDCDataset):
         self.data = pd.merge(
             self.RAW_DATA, motifs, on=["Target_ID"], how="left"
         ).dropna()
-
-        self.data = self.data[self.data["Motif"].str.len() <= self.MAX_MOTIF_LEN]
 
         # Reorder columns
         self.data = self.data[["Drug_ID", "Drug", "Target_ID", "Target", "Motif", "Y"]]
@@ -121,10 +115,21 @@ class _WideDTADataHandler(TDCDataset):
             lambda x: seq_to_words(x, word_len=3, max_length=self.MAX_MOTIF_LEN)
         )
 
-    def _make_words_set(self):
-        self.words_sets["Drug"] = make_words_set(self.data["Drug"])
-        self.words_sets["Target"] = make_words_set(self.data["Target"])
-        self.words_sets["Motif"] = make_words_set(self.data["Motif"])
+    def _make_words_dics(self):
+        self.word_to_int["Drug"] = make_words_dict(self.data["Drug"])
+        self.word_to_int["Target"] = make_words_dict(self.data["Target"])
+        self.word_to_int["Motif"] = make_words_dict(self.data["Motif"])
+
+    def _load_words_dict(self):
+        file_path = Path(self.path, self.name, f"{self.name}_words.json")
+        if file_path.is_file():
+            with open(file_path) as f:
+                self.word_to_int = json.load(f)
+            print("Words dictionary loaded from file.")
+        else:
+            self._make_words_dics()
+            with open(file_path, "w") as f:
+                f.write(json.dumps(self.word_to_int))
 
     def _fetch_data(self, index):
         drug, target, motif, label = (
@@ -136,21 +141,21 @@ class _WideDTADataHandler(TDCDataset):
 
         drug = one_hot_words(
             drug,
-            allowable_set=self.words_sets["Drug"],
+            word_to_int=self.word_to_int["Drug"],
             length=self.MAX_DRUG_LEN,
         )
         drug = torch.LongTensor(drug)
 
         target = one_hot_words(
             target,
-            allowable_set=self.words_sets["Target"],
+            word_to_int=self.word_to_int["Target"],
             length=self.MAX_TARGET_LEN,
         )
         target = torch.LongTensor(target)
 
         motif = one_hot_words(
             motif,
-            allowable_set=self.words_sets["Motif"],
+            word_to_int=self.word_to_int["Motif"],
             length=self.MAX_MOTIF_LEN,
         )
         motif = torch.LongTensor(motif)
@@ -176,7 +181,7 @@ class _WideDTATrainer(pl.LightningModule):
         decoder,
         lr=0.003,
         ci_metric=False,
-        **kwargs
+        **kwargs,
     ):
 
         super(_WideDTATrainer, self).__init__()
@@ -224,7 +229,6 @@ class _WideDTATrainer(pl.LightningModule):
             ci = concordance_index(y, y_pred)
             self.logger.log_metrics({"train_step_ci": ci}, self.global_step)
         self.logger.log_metrics({"train_step_loss": loss}, self.global_step)
-        self.log("train_step_loss_2", loss, on_epoch=True, on_step=False, prog_bar=True)
 
         return loss
 
@@ -298,7 +302,7 @@ class _WideDTA:
         )
 
         # Custom MLP
-        fc1 = nn.Linear(6144, self.config.Decoder.in_dim)
+        fc1 = nn.Linear(32, self.config.Decoder.in_dim)
         fc2 = nn.Linear(self.config.Decoder.in_dim, self.config.Decoder.hidden_dim)
         fc3 = nn.Linear(self.config.Decoder.hidden_dim, 1)
         decoder.fc_layers = nn.ModuleList([fc1, fc2, fc3])
@@ -318,7 +322,7 @@ class _WideDTA:
     def train(self):
         tb_logger = TensorBoardLogger(
             "outputs",
-            name=self.config.Dataset.name,
+            name=f"{self.config.Dataset.name}_WideDTA",
         )
 
         pl.seed_everything(seed=self.config.General.random_seed, workers=True)

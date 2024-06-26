@@ -86,15 +86,12 @@ class WideCNN(nn.Module):
             stride=1,
             padding=1,
         )
-        self.max_pool = nn.MaxPool1d(2, 2)
+        self.max_pool = nn.MaxPool1d(kernel_size=2)
 
     def forward(self, x) -> tuple:
         x = self.embedding(x)
         x = self.max_pool(F.relu(self.conv1(x)))
         x = self.max_pool(F.relu(self.conv2(x)))
-        x_size = x.size(2) * x.size(1)
-
-        x = x.view(-1, x_size)
 
         return x
 

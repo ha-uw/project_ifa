@@ -5,10 +5,12 @@ https://github.com/hkmztrk/DeepDTA and https://github.com/thinng/GraphDTA.
 
 import logging
 
+from pathlib import Path
 import numpy as np
 from rdkit import Chem
 import networkx as nx
 import deepsmiles
+import json
 
 from .constants import Tokens, AtomFeatures
 
@@ -126,10 +128,17 @@ def seq_to_words(sequence: str, word_len: int, max_length: int):
     return words
 
 
-def make_words_set(sequences: list[tuple]):
+def make_words_dict(sequences):
     words_set = set(word for seq in sequences for word in seq)
+    word_to_int = {word: i for i, word in enumerate(words_set, start=1)}
 
-    return words_set
+    return word_to_int
+
+
+def save_words_dict(words_dict: dict, data_path: str, dataset_name: str):
+    file_path = Path(data_path, dataset_name, f"{dataset_name}_words.json")
+    with open(file_path, "w") as f:
+        f.write(json.dumps(words_dict))
 
 
 # ------------------------------------------------------------------------------
@@ -141,14 +150,37 @@ def one_hot_encode(x, allowable_set) -> np.array:
     return np.array([x == s for s in allowable_set], dtype=int)
 
 
-def one_hot_words(x, allowable_set, length: int):
-    word_to_int = {word: i + 1 for i, word in enumerate(allowable_set)}
+def one_hot_words(x, word_to_int, length: int) -> np.array:
     indices_sequence = np.zeros(length, dtype=int)
 
-    for idx, word in enumerate(x):
-        if word in word_to_int:
-            indices_sequence[idx] = word_to_int[word]
-        else:
-            indices_sequence[idx] = 0.0
+    # Limit the loop to the minimum of the length of x and the specified length
+    for idx in range(min(len(x), length)):
+        word = x[idx]
+        indices_sequence[idx] = word_to_int.get(word, 0)
 
     return indices_sequence
+
+
+# def one_hot_words(x, allowable_set, length: int) -> np.array:
+#     word_to_int = {word: i for i, word in enumerate(allowable_set, start=1)}
+#     indices_sequence = np.zeros(length, dtype=int)
+
+#     # Limit the loop to the minimum of the length of x and the specified length
+#     for idx in range(min(len(x), length)):
+#         word = x[idx]
+#         indices_sequence[idx] = word_to_int.get(word, 0)
+
+#     return indices_sequence
+
+
+# def one_hot_words(x, allowable_set, length: int) -> np.array:
+#     word_to_int = {word: i + 1 for i, word in enumerate(allowable_set)}
+#     indices_sequence = np.zeros(length, dtype=int)
+
+#     for idx, word in enumerate(x):
+#         if word in word_to_int:
+#             indices_sequence[idx] = word_to_int[word]
+#         else:
+#             indices_sequence[idx] = 0
+
+#     return indices_sequence

@@ -35,7 +35,7 @@ Decoder:
 
 Trainer:
   ci_metric: True
-  train_batch_size: 256
+  train_batch_size: 100
   test_batch_size: 256
   min_epochs: 0
   max_epochs: 100

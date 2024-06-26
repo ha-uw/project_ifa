@@ -211,6 +211,7 @@ class _WideDTATrainer(pl.LightningModule):
         drug = self.drug_encoder(x_drug)
         target = self.target_encoder(x_target)
         motif = self.motif_encoder(x_motif)
+
         comb_emb = torch.cat((drug, target, motif), dim=1)
 
         output = self.decoder(comb_emb)
@@ -302,7 +303,7 @@ class _WideDTA:
         )
 
         # Custom MLP
-        fc1 = nn.Linear(32, self.config.Decoder.in_dim)
+        fc1 = nn.Linear(192, self.config.Decoder.in_dim)
         fc2 = nn.Linear(self.config.Decoder.in_dim, self.config.Decoder.in_dim)
         fc3 = nn.Linear(self.config.Decoder.in_dim, self.config.Decoder.hidden_dim)
         fc4 = nn.Linear(self.config.Decoder.hidden_dim, 1)

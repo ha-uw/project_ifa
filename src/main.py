@@ -18,4 +18,4 @@ if __name__ == "__main__":
         fast_dev_run=False,
     )
 
-    dd.train()
+    wd.train()

@@ -298,14 +298,15 @@ class _WideDTA:
             in_dim=self.config.Decoder.in_dim,
             hidden_dim=self.config.Decoder.hidden_dim,
             dropout_rate=self.config.Decoder.dropout_rate,
-            num_fc_layers=3,
+            num_fc_layers=4,
         )
 
         # Custom MLP
         fc1 = nn.Linear(32, self.config.Decoder.in_dim)
-        fc2 = nn.Linear(self.config.Decoder.in_dim, self.config.Decoder.hidden_dim)
-        fc3 = nn.Linear(self.config.Decoder.hidden_dim, 1)
-        decoder.fc_layers = nn.ModuleList([fc1, fc2, fc3])
+        fc2 = nn.Linear(self.config.Decoder.in_dim, self.config.Decoder.in_dim)
+        fc3 = nn.Linear(self.config.Decoder.in_dim, self.config.Decoder.hidden_dim)
+        fc4 = nn.Linear(self.config.Decoder.hidden_dim, 1)
+        decoder.fc_layers = nn.ModuleList([fc1, fc2, fc3, fc4])
 
         model = _WideDTATrainer(
             drug_encoder=drug_encoder,

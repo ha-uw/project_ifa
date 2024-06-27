@@ -77,8 +77,8 @@ class _WideDTADataHandler(TDCDataset):
         try:
             hifens = "-" * 50
             print("Starting Preprocessing.", hifens)
-            self._filter_data()
             self._load_motifs()
+            self._filter_data()
             self._smiles_to_deep()
             self._convert_seqs_to_words()
             self._load_words_dict()
@@ -89,7 +89,23 @@ class _WideDTADataHandler(TDCDataset):
             raise Exception(e)
 
     def _filter_data(self):
-        pass
+        original_size = self.data.shape[0]
+        self.data.drop_duplicates(subset=["Drug_ID", "Target_ID"], inplace=True)
+        self.data.dropna(inplace=True)
+
+        self.data.groupby("Drug_ID")["Target_ID"].nunique()
+        drug_target_counts = (
+            self.data.groupby("Drug_ID")["Target_ID"]
+            .nunique()
+            .reset_index(name="Target_Count")
+        )
+        drug_ids_to_remove = drug_target_counts[
+            drug_target_counts["Target_Count"] < 10
+        ]["Drug_ID"]
+
+        self.data = self.data[~self.data["Drug_ID"].isin(drug_ids_to_remove)]
+
+        print(f"Rows filtered out: {original_size - self.data.shape[0]}")
 
     def _load_motifs(self):
         mf = MotifFetcher()
@@ -356,6 +372,8 @@ class _WideDTA:
             dataset=train_dataset,
             shuffle=True,
             batch_size=self.config.Trainer.train_batch_size,
+            num_workers=4,
+            persistent_workers=True,
         )
         valid_loader = DataLoader(
             dataset=valid_dataset,

@@ -24,7 +24,7 @@ class TDCDataset(data.Dataset):
         name: str,
         split="train",
         path="data",
-        label_to_log=True,
+        label_to_log=False,
         drug_transform=None,
         target_transform=None,
     ):

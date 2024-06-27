@@ -9,6 +9,7 @@ General:
 Dataset:
   name: "bindingdb_ki"
   path: "data"
+  label_to_log: False
 
 Encoder:
   num_filters: 32

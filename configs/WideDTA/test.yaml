@@ -9,6 +9,7 @@ General:
 Dataset:
   name: "davis"
   path: "data"
+  label_to_log: True
 
 Encoder:
   num_filters: 32

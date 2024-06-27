@@ -41,7 +41,7 @@ class GraphDTADataHandler(TDCDataset):
         dataset_name: str,
         split="train",
         path="./data",
-        label_to_log=True,
+        label_to_log=False,
         drug_transform=None,
         target_transform=None,
     ):
@@ -199,16 +199,19 @@ class _GraphDTA:
             dataset_name=self.config.Dataset.name,
             split="train",
             path=self.config.Dataset.path,
+            label_to_log=self.config.Dataset.label_to_log,
         )
         valid_dataset = GraphDTADataHandler(
             dataset_name=self.config.Dataset.name,
             split="valid",
             path=self.config.Dataset.path,
+            label_to_log=self.config.Dataset.label_to_log,
         )
         test_dataset = GraphDTADataHandler(
             dataset_name=self.config.Dataset.name,
             split="test",
             path=self.config.Dataset.path,
+            label_to_log=self.config.Dataset.label_to_log,
         )
 
         pl_dataset = LightningDataset(

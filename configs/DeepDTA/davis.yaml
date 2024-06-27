@@ -1,3 +1,4 @@
+# DeepDTA
 General:
   fast_dev_run: True
   random_seed: 42
@@ -9,6 +10,7 @@ General:
 Dataset:
   name: "davis"
   path: "data"
+  label_to_log: True
 
 Encoder:
   Drug:

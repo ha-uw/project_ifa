@@ -1,4 +1,4 @@
-# WideDTA
+# WideDTA - Kiba
 General:
   fast_dev_run: False
   random_seed: 42
@@ -7,7 +7,7 @@ General:
   patience_epochs: 10
 
 Dataset:
-  name: "davis"
+  name: "kiba"
   path: "data"
   label_to_log: False
 

@@ -1,5 +1,6 @@
 from methods.widedta import WideDTA
 from methods.deepdta import DeepDTA
+from pathlib import Path
 
 from torch import set_float32_matmul_precision
 
@@ -9,13 +10,13 @@ set_float32_matmul_precision("medium")
 if __name__ == "__main__":
 
     wd = WideDTA(
-        config_file=r"C:\Users\raulc\code\projeto_ifá\configs\widedta.yaml",
+        config_file=Path("configs", "WideDTA", "bindingdb_ki.yaml"),
         fast_dev_run=False,
     )
 
-    dd = DeepDTA(
-        config_file=r"C:\Users\raulc\code\projeto_ifá\configs\deepdta.yaml",
-        fast_dev_run=False,
-    )
+    # dd = DeepDTA(
+    #     config_file=r"C:\Users\raulc\code\projeto_ifá\configs\deepdta.yaml",
+    #     fast_dev_run=False,
+    # )
 
     wd.train()

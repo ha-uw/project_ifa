@@ -14,7 +14,7 @@ class TestEncoders(unittest.TestCase):
         )
 
     def test_CNN(self):
-        model = encoders.CNN(100, 10, 10, 32, [3, 4, 5])
+        model = encoders.CNN(100, 10, 10, 32, [3, 4, 5], num_conv_layers=3)
         output = model.forward(torch.randint(0, 100, (10, 10)))
         self.assertEqual(output.size(), (10, 96))
 

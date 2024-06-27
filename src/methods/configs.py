@@ -1,17 +1,17 @@
-import os
 import yaml
+from pathlib import Path
 from dataclasses import dataclass
 
 
 @dataclass
 class ConfigLoader:
     def load_config(self, config_path):
-        if not os.path.isfile(config_path):
+        if not Path(config_path).is_file():
             raise FileNotFoundError(
                 f"The configuration file {config_path} does not exist."
             )
         self.config_path = config_path
-        with open(self.config_path, "r") as file:
+        with open(self.config_path) as file:
             self._data = yaml.safe_load(file)
         self._populate_attrs(self._data)
 

@@ -1,0 +1,40 @@
+# WideDTA
+General:
+  fast_dev_run: False
+  random_seed: 42
+  early_stop: True
+  min_delta: 0.001
+  patience_epochs: 10
+
+Dataset:
+  name: "bindingdb_ic50"
+  path: "data"
+  label_to_log: False
+
+Encoder:
+  num_filters: 32
+  kernel_size: 2
+  embedding_dim: 128
+
+  Drug:
+    sequence_length: 85
+  Target:
+    sequence_length: 1000
+  Motif:
+    sequence_length: 500
+
+Decoder:
+  # MPL
+  in_dim: 192
+  hidden_dim: 1024
+  out_dim: 512
+  dropout_rate: 0.3
+  num_fc_layers: 3
+
+Trainer:
+  ci_metric: True
+  train_batch_size: 256
+  test_batch_size: 256
+  min_epochs: 0
+  max_epochs: 100
+  learning_rate: 0.003

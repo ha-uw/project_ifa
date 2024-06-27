@@ -1,5 +1,6 @@
 import unittest
 from rdkit import Chem
+import numpy as np
 
 from src.data import processing, constants
 
@@ -60,7 +61,7 @@ class TestProcessing(unittest.TestCase):
         encoding = processing.tokenize_smiles("XX", 5)
         self.assertEqual(encoding.tolist(), [0.0] * 5)
 
-        encoding = processing.tokenize_smiles("CZi", 5, isomeric=True)
+        encoding = processing.tokenize_smiles("CZi", 5, to_isomeric=False)
         self.assertEqual(encoding.tolist(), [42.0, 19.0, 59.0, 0.0, 0.0])
 
     def test_tokenize_target(self):
@@ -69,6 +70,112 @@ class TestProcessing(unittest.TestCase):
 
         encoding = processing.tokenize_target("JJJ", 5)
         self.assertEqual(len(encoding), 5)
+
+
+class TestToDeepSmiles(unittest.TestCase):
+    def test_simple_smiles_conversion(self):
+        smiles = "CCO"
+        expected_deep_smiles = "CCO"
+        self.assertEqual(processing.to_deepsmiles(smiles), expected_deep_smiles)
+
+    def test_complex_smiles_conversion(self):
+        smiles = "C1=CC=CC=C1"
+        expected_deep_smiles = "C=CC=CC=C6"
+        self.assertEqual(processing.to_deepsmiles(smiles), expected_deep_smiles)
+
+    def test_no_rings_branches_smiles_conversion(self):
+        smiles = "CCCC"
+        expected_deep_smiles = "CCCC"
+        self.assertEqual(processing.to_deepsmiles(smiles), expected_deep_smiles)
+
+
+class TestSeqToWords(unittest.TestCase):
+    def test_short_sequence(self):
+        sequence = "MVKVYAPAS"
+        word_len = 3
+        expected = ("MVK", "VYA", "PAS", "VKV", "YAP", "KVY", "APA")
+        result = processing.seq_to_words(sequence, word_len, max_length=10)
+        self.assertEqual(result, expected)
+
+    def test_longer_sequence(self):
+        sequence = "MVKVYAPASSANMSVGFDVLGAAVTPVD"
+        word_len = 4
+        expected = (
+            "MVKV",
+            "YAPA",
+            "SSAN",
+        )
+        result = processing.seq_to_words(sequence, word_len, max_length=3)
+        self.assertEqual(result, expected)
+
+
+class TestMakeWordsDict(unittest.TestCase):
+    def test_with_single_sequence(self):
+        sequences = [("MVK", "VYA", "PAS")]
+        expected_dict = {"MVK": 1, "VYA": 2, "PAS": 3}
+        result = processing.make_words_dict(sequences)
+        self.assertEqual(len(result), 3)
+        self.assertIsInstance(result, dict)
+
+    def test_with_multiple_sequences(self):
+        sequences = [("MVK", "VYA"), ("PAS", "VKV")]
+        expected_keys = {"MVK", "VYA", "PAS", "VKV"}
+        result = processing.make_words_dict(sequences)
+        self.assertEqual(len(result), 4)
+        self.assertTrue(all(key in result for key in expected_keys))
+
+    def test_with_empty_sequence(self):
+        sequences = []
+        result = processing.make_words_dict(sequences)
+        self.assertEqual(len(result), 0)
+
+    def test_with_repeated_words(self):
+        sequences = [("MVK", "VYA"), ("MVK", "VYA"), ("VYA", "MVK")]
+        expected_dict_length = 2
+        result = processing.make_words_dict(sequences)
+        self.assertEqual(len(result), expected_dict_length)
+
+    def test_with_different_length_sequences(self):
+        sequences = [("MVK",), ("VYA", "PAS"), ("VKV", "YAP", "KVY")]
+        expected_dict_length = 6
+        result = processing.make_words_dict(sequences)
+        self.assertEqual(len(result), expected_dict_length)
+
+
+class TestEncodeWords(unittest.TestCase):
+    def setUp(self):
+        self.word_to_int = {"A": 1, "B": 2, "C": 3}
+        self.length = 5
+
+    def test_encode_word_all_known(self):
+        sequence = ["A", "B", "C"]
+        expected = [1, 2, 3, 0, 0]
+        result = processing.encode_word(sequence, self.word_to_int, self.length)
+        self.assertEqual(result.tolist(), expected)
+
+    def test_encode_word_with_unknown(self):
+        sequence = ["A", "X", "C"]
+        expected = [1, 0, 3, 0, 0]
+        result = processing.encode_word(sequence, self.word_to_int, self.length)
+        self.assertEqual(result.tolist(), expected)
+
+    def test_encode_word_empty_sequence(self):
+        sequence = []
+        expected = [0, 0, 0, 0, 0]
+        result = processing.encode_word(sequence, self.word_to_int, self.length)
+        self.assertEqual(result.tolist(), expected)
+
+    def test_encode_word_longer_than_length(self):
+        sequence = ["A", "B", "C", "A", "B", "C"]
+        expected = [1, 2, 3, 1, 2]
+        result = processing.encode_word(sequence, self.word_to_int, self.length)
+        self.assertEqual(result.tolist(), expected)
+
+    def test_encode_word_shorter_than_length(self):
+        sequence = ["A", "B"]
+        expected = [1, 2, 0, 0, 0]
+        result = processing.encode_word(sequence, self.word_to_int, self.length)
+        self.assertEqual(result.tolist(), expected)
 
 
 if __name__ == "__main__":

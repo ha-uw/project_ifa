@@ -5,13 +5,16 @@ from torch.utils.data import DataLoader
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+from pathlib import Path
 
 from .configs import ConfigLoader
+
+from data.processing import tokenize_smiles, tokenize_target
+from data.evaluation import concordance_index
 from data.loading import TDCDataset
 from modules.encoders import CNN
 from modules.decoders import MLP
 from modules.trainers import BaseDTATrainer
-from data.evaluation import concordance_index
 
 
 # =============================== Code ==================================
@@ -27,6 +30,48 @@ class DeepDTA:
 
     def test(self):
         raise NotImplementedError("This will be implemented soon.")
+
+
+class DeepDTADataHandler(TDCDataset):
+    def __init__(
+        self,
+        dataset_name: str,
+        split="train",
+        path="data",
+        label_to_log=False,
+        drug_transform=None,
+        target_transform=None,
+    ):
+        super().__init__(
+            name=dataset_name,
+            split=split,
+            path=path,
+            label_to_log=label_to_log,
+            drug_transform=drug_transform,
+            target_transform=target_transform,
+        )
+
+    def _deepdta(self, drug, target):
+        drug = torch.LongTensor(tokenize_smiles(drug))
+        target = torch.LongTensor(tokenize_target(target))
+
+        return drug, target
+
+    def _fetch_data(self, index):
+        drug, target, label = (
+            self.data["Drug"][index],
+            self.data["Target"][index],
+            self.data["Y"][index],
+        )
+
+        label = torch.FloatTensor([label])
+        drug, target = self._deepdta(drug, target)
+
+        return drug, target, label
+
+    def __getitem__(self, index):
+        drug, target, label = self._fetch_data(index)
+        return drug, target, label
 
 
 class _DeepDTATrainer(BaseDTATrainer):
@@ -45,6 +90,7 @@ class _DeepDTATrainer(BaseDTATrainer):
         """
         drug_emb = self.drug_encoder(x_drug)
         target_emb = self.target_encoder(x_target)
+
         comb_emb = torch.cat((drug_emb, target_emb), dim=1)
 
         output = self.decoder(comb_emb)
@@ -83,7 +129,8 @@ class _DeepDTA:
             embedding_dim=self.config.Encoder.Drug.embedding_dim,
             sequence_length=self.config.Encoder.Drug.sequence_length,
             num_filters=self.config.Encoder.Drug.num_filters,
-            filter_length=self.config.Encoder.Drug.filter_length,
+            kernel_size=self.config.Encoder.Drug.kernel_size,
+            num_conv_layers=self.config.Encoder.Drug.num_conv_layers,
         )
 
         target_encoder = CNN(
@@ -91,7 +138,8 @@ class _DeepDTA:
             embedding_dim=self.config.Encoder.Target.embedding_dim,
             sequence_length=self.config.Encoder.Target.sequence_length,
             num_filters=self.config.Encoder.Target.num_filters,
-            filter_length=self.config.Encoder.Target.filter_length,
+            kernel_size=self.config.Encoder.Target.kernel_size,
+            num_conv_layers=self.config.Encoder.Target.num_conv_layers,
         )
 
         decoder = MLP(
@@ -99,7 +147,7 @@ class _DeepDTA:
             hidden_dim=self.config.Decoder.hidden_dim,
             out_dim=self.config.Decoder.out_dim,
             dropout_rate=self.config.Decoder.dropout_rate,
-            include_decoder_layers=self.config.Decoder.include_decoder_layers,
+            num_fc_layers=self.config.Decoder.num_fc_layers,
         )
 
         model = _DeepDTATrainer(
@@ -122,30 +170,42 @@ class _DeepDTA:
         pl.seed_everything(seed=self.config.General.random_seed, workers=True)
 
         # ---- set dataset ----
-        train_dataset = TDCDataset(
-            name=self.config.Dataset.name, split="train", path=self.config.Dataset.path
+        train_dataset = DeepDTADataHandler(
+            dataset_name=self.config.Dataset.name,
+            split="train",
+            path=self.config.Dataset.path,
+            label_to_log=self.config.Dataset.label_to_log,
         )
-        valid_dataset = TDCDataset(
-            name=self.config.Dataset.name, split="valid", path=self.config.Dataset.path
+        valid_dataset = DeepDTADataHandler(
+            dataset_name=self.config.Dataset.name,
+            split="valid",
+            path=self.config.Dataset.path,
+            label_to_log=self.config.Dataset.label_to_log,
         )
-        test_dataset = TDCDataset(
-            name=self.config.Dataset.name, split="test", path=self.config.Dataset.path
+        test_dataset = DeepDTADataHandler(
+            dataset_name=self.config.Dataset.name,
+            split="test",
+            path=self.config.Dataset.path,
+            label_to_log=self.config.Dataset.label_to_log,
         )
 
         train_loader = DataLoader(
             dataset=train_dataset,
             shuffle=True,
             batch_size=self.config.Trainer.train_batch_size,
+            pin_memory=True,
         )
         valid_loader = DataLoader(
             dataset=valid_dataset,
-            shuffle=True,
+            shuffle=False,
             batch_size=self.config.Trainer.test_batch_size,
+            pin_memory=True,
         )
         test_loader = DataLoader(
             dataset=test_dataset,
-            shuffle=True,
+            shuffle=False,
             batch_size=self.config.Trainer.test_batch_size,
+            pin_memory=True,
         )
 
         # ---- set model ----

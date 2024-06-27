@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 from tqdm import tqdm
 from torch.utils.data import Dataset
+import re
 
 
 class MotifFetcher:
@@ -86,7 +87,9 @@ class MotifFetcher:
     def _update_motif_file(self, data, motif_file_path, local_data=pd.DataFrame | None):
         initial = 0
         if isinstance(local_data, pd.DataFrame) and not local_data.empty:
-            unprocessed_data = data[~data["Target_ID"].isin(local_data["Target_ID"])]
+            unprocessed_data = data[
+                ~data["Target_ID"].isin(local_data["Target_ID"])
+            ].dropna()
             initial += len(local_data["Target_ID"])
         else:
             unprocessed_data = data
@@ -115,7 +118,7 @@ class MotifFetcher:
         return False
 
     def _filter_data(self, data):
-        # data.dropna(inplace=True)
+        data.dropna(inplace=True)
         data.drop_duplicates(subset=["Target_ID"], inplace=True)
 
         return
@@ -123,10 +126,11 @@ class MotifFetcher:
     def get_motifs(self, data: Dataset, path, name):
         self._filter_data(data)  # remove NaN values and duplicates
 
-        motif_file_path = Path(path, name.lower(), f"{name.lower()}_motifs.csv")
+        motif_file_path = Path(path, f"{name.lower()}_motifs.csv")
 
         if motif_file_path.is_file() and motif_file_path.stat().st_size > 0:
-            local_data = pd.read_csv(motif_file_path).fillna("")
+            local_data = pd.read_csv(motif_file_path)
+
             print("Motif file loaded successfully.")
             updated = self._update_motif_file(
                 data, motif_file_path=motif_file_path, local_data=local_data

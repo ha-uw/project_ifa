@@ -111,21 +111,78 @@ def to_deepsmiles(smiles: str):
     return deep_smiles
 
 
-def seq_to_words(sequence: str, word_len: int, max_length: int):
-    words = ()
-    sequence_length = len(sequence)
-    count = 0
+# def seq_to_words(sequence: str, word_len: int, max_length: int):
+#     words = ()
+#     sequence_length = len(sequence)
+#     count = 0
 
+#     for start_index in range(word_len):
+#         for i in range(start_index, sequence_length, word_len):
+#             if count >= max_length:
+#                 return words
+#             substring = sequence[i : i + word_len]
+#             if len(substring) == word_len:
+#                 words += (substring,)
+#                 count += 1
+
+#     return words
+
+
+# def seq_to_words(sequence: str, word_len: int, max_length: int):
+#     sequence_array = np.array(list(sequence))
+
+#     words = []
+
+#     # Iterate over each possible starting index within the word length
+#     for start_index in range(word_len):
+#         # Calculate the end index for slicing by stepping word_len at a time
+#         end_index = sequence_array.size
+
+#         # Slice the array from start_index to the end, stepping by word_len
+#         sliced_words = sequence_array[start_index:end_index:word_len]
+
+#         # Calculate how many full words we can take from this slice
+#         num_full_words = min(
+#             len(sliced_words) * word_len // word_len, max_length - len(words)
+#         )
+
+#         # Convert sliced words back to strings and add to the words list
+#         for i in range(num_full_words):
+#             word = "".join(sliced_words[i * word_len : (i + 1) * word_len])
+#             words.append(word)
+#             if len(words) >= max_length:
+#                 break
+
+#         # If we've reached the max_length, stop processing
+#         if len(words) >= max_length:
+#             break
+
+#     # Convert the list of words back to a tuple before returning
+#     return tuple(words)
+
+
+def seq_to_words(sequence: str, word_len: int, max_length: int):
+    # Early exit for invalid input
+    if word_len <= 0 or max_length <= 0:
+        return ()
+
+    words = []
+    sequence_length = len(sequence)
+    # Calculate the total possible words to be extracted
+    total_possible_words = sum(
+        (sequence_length - start_index) // word_len for start_index in range(word_len)
+    )
+    # Iterate up to the minimum of max_length and total_possible_words
     for start_index in range(word_len):
         for i in range(start_index, sequence_length, word_len):
-            if count >= max_length:
-                return words
+            if len(words) >= min(max_length, total_possible_words):
+                return tuple(words)
+
             substring = sequence[i : i + word_len]
             if len(substring) == word_len:
-                words += (substring,)
-                count += 1
+                words.append(substring)
 
-    return words
+    return tuple(words)
 
 
 def make_words_dict(sequences):

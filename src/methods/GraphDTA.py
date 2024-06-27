@@ -195,21 +195,20 @@ class _GraphDTA:
         pl.seed_everything(seed=self.config.General.random_seed, workers=True)
 
         # ---- set dataset ----
-        data_path = Path(self.config.Dataset.path, self.config.Dataset.name)
         train_dataset = GraphDTADataHandler(
             dataset_name=self.config.Dataset.name,
             split="train",
-            path=data_path,
+            path=self.config.Dataset.path,
         )
         valid_dataset = GraphDTADataHandler(
             dataset_name=self.config.Dataset.name,
             split="valid",
-            path=data_path,
+            path=self.config.Dataset.path,
         )
         test_dataset = GraphDTADataHandler(
             dataset_name=self.config.Dataset.name,
             split="test",
-            path=data_path,
+            path=self.config.Dataset.path,
         )
 
         pl_dataset = LightningDataset(

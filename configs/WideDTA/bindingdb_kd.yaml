@@ -1,3 +1,4 @@
+# WideDTA
 General:
   fast_dev_run: False
   random_seed: 42
@@ -6,7 +7,7 @@ General:
   patience_epochs: 10
 
 Dataset:
-  name: "davis"
+  name: "bindingdb_kd"
   path: "data"
 
 Encoder:
@@ -15,13 +16,10 @@ Encoder:
   embedding_dim: 128
 
   Drug:
-    num_embeddings: 1993
     sequence_length: 85
   Target:
-    num_embeddings: 7932
     sequence_length: 1000
   Motif:
-    num_embeddings: 2344
     sequence_length: 500
 
 Decoder:

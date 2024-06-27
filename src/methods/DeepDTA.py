@@ -37,7 +37,7 @@ class DeepDTADataHandler(TDCDataset):
         self,
         dataset_name: str,
         split="train",
-        path="./data",
+        path="data",
         label_to_log=True,
         drug_transform=None,
         target_transform=None,
@@ -170,21 +170,20 @@ class _DeepDTA:
         pl.seed_everything(seed=self.config.General.random_seed, workers=True)
 
         # ---- set dataset ----
-        data_path = Path(self.config.Dataset.path, self.config.Dataset.name)
         train_dataset = DeepDTADataHandler(
             dataset_name=self.config.Dataset.name,
             split="train",
-            path=data_path,
+            path=self.config.Dataset.path,
         )
         valid_dataset = DeepDTADataHandler(
             dataset_name=self.config.Dataset.name,
             split="valid",
-            path=data_path,
+            path=self.config.Dataset.path,
         )
         test_dataset = DeepDTADataHandler(
             dataset_name=self.config.Dataset.name,
             split="test",
-            path=data_path,
+            path=self.config.Dataset.path,
         )
 
         train_loader = DataLoader(

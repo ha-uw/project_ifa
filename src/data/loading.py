@@ -23,7 +23,7 @@ class TDCDataset(data.Dataset):
         self,
         name: str,
         split="train",
-        path="./data",
+        path="data",
         label_to_log=True,
         drug_transform=None,
         target_transform=None,
@@ -33,9 +33,11 @@ class TDCDataset(data.Dataset):
                 "Invalid split type. Expected one of: ['train', 'valid', 'test']"
             )
 
-        self.name = name.upper()
-        self.path = Path(path)
-        self.data = DTI(name=name, path=path)
+        self.name = name.lower()
+        self.path = Path(path, self.name)
+        self.path.parent.mkdir(exist_ok=True, parents=True)
+
+        self.data = DTI(name=self.name, path=self.path, print_stats=True)
 
         if label_to_log:
             self.data.convert_to_log()

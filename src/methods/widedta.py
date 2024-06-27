@@ -52,7 +52,7 @@ class _WideDTADataHandler(TDCDataset):
         self,
         dataset_name: str,
         split="train",
-        path="./data",
+        path="data",
         label_to_log=True,
         drug_transform=None,
         target_transform=None,
@@ -75,12 +75,15 @@ class _WideDTADataHandler(TDCDataset):
 
     def _preprocess_data(self):
         try:
+            hifens = "-" * 50
+            print("Starting Preprocessing.", hifens)
             self._filter_data()
             self._load_motifs()
             self._smiles_to_deep()
             self._convert_seqs_to_words()
             self._load_words_dict()
             self.data.reset_index(drop=True, inplace=True)
+            print("Preprocessing finished.", hifens)
         except Exception as e:
             print("Error preprocessing data:", e)
             raise Exception(e)
@@ -101,9 +104,12 @@ class _WideDTADataHandler(TDCDataset):
         self.data = self.data[["Drug_ID", "Drug", "Target_ID", "Target", "Motif", "Y"]]
 
     def _smiles_to_deep(self):
+        print("Converting smiles to DeepSmiles.")
         self.data["Drug"] = self.data["Drug"].apply(lambda x: to_deepsmiles(x))
 
     def _convert_seqs_to_words(self):
+        print("Converting sequences to words.")
+
         self.data["Drug"] = self.data["Drug"].apply(
             lambda x: seq_to_words(x, word_len=8, max_length=self.MAX_DRUG_LEN)
         )
@@ -122,9 +128,7 @@ class _WideDTADataHandler(TDCDataset):
         self.word_to_int["Motif"] = make_words_dict(self.data["Motif"])
 
     def _load_words_dict(self):
-        file_path = Path(
-            self.path, self.dataset_name, f"{self.dataset_name}_words.json"
-        )
+        file_path = Path(self.path, f"{self.dataset_name}_words.json")
         if file_path.is_file():
             with open(file_path) as f:
                 self.word_to_int = json.load(f)
@@ -276,23 +280,25 @@ class _WideDTA:
 
         self.config = cl
 
-    def make_model(self):
+    def make_model(
+        self, num_embeddings_drug, num_embeddings_target, num_embeddings_motif
+    ):
         drug_encoder = WideCNN(
-            num_embeddings=self.config.Encoder.Drug.num_embeddings,
+            num_embeddings=num_embeddings_drug,
             sequence_length=self.config.Encoder.Drug.sequence_length,
             num_filters=self.config.Encoder.num_filters,
             kernel_size=self.config.Encoder.kernel_size,
         )
 
         target_encoder = WideCNN(
-            num_embeddings=self.config.Encoder.Target.num_embeddings,
+            num_embeddings=num_embeddings_target,
             sequence_length=self.config.Encoder.Target.sequence_length,
             num_filters=self.config.Encoder.num_filters,
             kernel_size=self.config.Encoder.kernel_size,
         )
 
         motif_encoder = WideCNN(
-            num_embeddings=self.config.Encoder.Motif.num_embeddings,
+            num_embeddings=num_embeddings_motif,
             sequence_length=self.config.Encoder.Motif.sequence_length,
             num_filters=self.config.Encoder.num_filters,
             kernel_size=self.config.Encoder.kernel_size,
@@ -363,7 +369,15 @@ class _WideDTA:
 
         # ---- set model ----
         if not hasattr(self, "model") or self.model is None:
-            self.make_model()
+            num_embeddings_drug = len(train_dataset.word_to_int["Drug"])
+            num_embeddings_target = len(train_dataset.word_to_int["Target"])
+            num_embeddings_motif = len(train_dataset.word_to_int["Motif"])
+
+            self.make_model(
+                num_embeddings_drug=num_embeddings_drug,
+                num_embeddings_target=num_embeddings_target,
+                num_embeddings_motif=num_embeddings_motif,
+            )
 
         # ---- training and evaluation ----
         checkpoint_callback = ModelCheckpoint(

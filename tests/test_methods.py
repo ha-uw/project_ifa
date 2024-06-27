@@ -13,7 +13,7 @@ set_float32_matmul_precision("medium")
 
 class TestMethods(unittest.TestCase):
     def test_deepdta(self):
-        config_file = Path("configs", "deepdta.yaml")
+        config_file = Path("configs", "DeepDTA", "test.yaml")
         deepdta = DeepDTA(config_file, fast_dev_run=True)
 
         try:
@@ -22,7 +22,7 @@ class TestMethods(unittest.TestCase):
             self.fail(f"deepdta function failed with an exception: {e}")
 
     def test_graphdta(self):
-        config_file = Path("configs", "graphdta.yaml")
+        config_file = Path("configs", "GraphDTA", "test.yaml")
         drug_encoder = "GCN"
         graphdta = GraphDTA(config_file, drug_encoder=drug_encoder, fast_dev_run=True)
 
@@ -32,7 +32,7 @@ class TestMethods(unittest.TestCase):
             self.fail(f"graphdta function failed with an exception: {e}")
 
     def test_widedta(self):
-        config_file = Path("configs", "widedta.yaml")
+        config_file = Path("configs", "WideDTA", "test.yaml")
         widedta = WideDTA(config_file, fast_dev_run=True)
 
         try:

@@ -30,12 +30,13 @@ Decoder:
   # MPL
   in_dim: 192
   hidden_dim: 1024
+  out_dim: 512
   dropout_rate: 0.1
-  num_fc_layers: 2
+  num_fc_layers: 3
 
 Trainer:
   ci_metric: True
-  train_batch_size: 100
+  train_batch_size: 256
   test_batch_size: 256
   min_epochs: 0
   max_epochs: 100

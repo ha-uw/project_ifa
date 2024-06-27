@@ -170,6 +170,7 @@ class _GraphDTA:
         decoder = MLP(
             dropout_rate=self.config.Decoder.dropout_rate,
             hidden_dim=self.config.Decoder.hidden_dim,
+            out_dim=self.config.Decoder.out_dim,
             in_dim=self.config.Decoder.in_dim,
             num_fc_layers=self.config.Decoder.num_fc_layers,
         )

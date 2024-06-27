@@ -109,69 +109,73 @@ class TestSeqToWords(unittest.TestCase):
         self.assertEqual(result, expected)
 
 
-class TestMakeWordsSet(unittest.TestCase):
-    def test_empty_input(self):
+class TestMakeWordsDict(unittest.TestCase):
+    def test_with_single_sequence(self):
+        sequences = [("MVK", "VYA", "PAS")]
+        expected_dict = {"MVK": 1, "VYA": 2, "PAS": 3}
+        result = processing.make_words_dict(sequences)
+        self.assertEqual(len(result), 3)
+        self.assertIsInstance(result, dict)
+
+    def test_with_multiple_sequences(self):
+        sequences = [("MVK", "VYA"), ("PAS", "VKV")]
+        expected_keys = {"MVK", "VYA", "PAS", "VKV"}
+        result = processing.make_words_dict(sequences)
+        self.assertEqual(len(result), 4)
+        self.assertTrue(all(key in result for key in expected_keys))
+
+    def test_with_empty_sequence(self):
         sequences = []
-        expected = set()
-        self.assertEqual(processing.make_words_set(sequences), expected)
+        result = processing.make_words_dict(sequences)
+        self.assertEqual(len(result), 0)
 
-    def test_single_sequence(self):
-        sequences = [("ABC", "DEF")]
-        expected = {"ABC", "DEF"}
-        self.assertEqual(processing.make_words_set(sequences), expected)
+    def test_with_repeated_words(self):
+        sequences = [("MVK", "VYA"), ("MVK", "VYA"), ("VYA", "MVK")]
+        expected_dict_length = 2
+        result = processing.make_words_dict(sequences)
+        self.assertEqual(len(result), expected_dict_length)
 
-    def test_multiple_sequences(self):
-        sequences = [("ABC", "DEF"), ("GHI", "JKL")]
-        expected = {"ABC", "DEF", "GHI", "JKL"}
-        self.assertEqual(processing.make_words_set(sequences), expected)
-
-    def test_duplicate_words_across_sequences(self):
-        sequences = [("ABC", "DEF"), ("DEF", "GHI")]
-        expected = {"ABC", "DEF", "GHI"}
-        self.assertEqual(processing.make_words_set(sequences), expected)
+    def test_with_different_length_sequences(self):
+        sequences = [("MVK",), ("VYA", "PAS"), ("VKV", "YAP", "KVY")]
+        expected_dict_length = 6
+        result = processing.make_words_dict(sequences)
+        self.assertEqual(len(result), expected_dict_length)
 
 
 class TestOneHotWords(unittest.TestCase):
     def setUp(self):
-        self.allowable_set = ["A", "C", "G", "T"]  # Example for DNA sequences
+        self.word_to_int = {"A": 1, "B": 2, "C": 3}
         self.length = 5
 
-    def test_simple_input(self):
-        input_sequence = ["A", "C", "G", "A", "T"]
-        expected_output = [1, 2, 3, 1, 4]
-        self.assertEqual(
-            processing.one_hot_words(
-                input_sequence, self.allowable_set, self.length
-            ).tolist(),
-            expected_output,
-        )
+    def test_one_hot_words_all_known(self):
+        sequence = ["A", "B", "C"]
+        expected = [1, 2, 3, 0, 0]
+        result = processing.one_hot_words(sequence, self.word_to_int, self.length)
+        self.assertEqual(result.tolist(), expected)
 
-    def test_input_with_unknown_words(self):
-        input_sequence = ["A", "X", "G", "Y", "T"]
-        expected_output = [1, 0, 3, 0, 4]
-        self.assertEqual(
-            processing.one_hot_words(
-                input_sequence, self.allowable_set, self.length
-            ).tolist(),
-            expected_output,
-        )
+    def test_one_hot_words_with_unknown(self):
+        sequence = ["A", "X", "C"]
+        expected = [1, 0, 3, 0, 0]
+        result = processing.one_hot_words(sequence, self.word_to_int, self.length)
+        self.assertEqual(result.tolist(), expected)
 
-    def test_empty_input(self):
-        input_sequence = []
-        expected_output = [0, 0, 0, 0, 0]
-        self.assertEqual(
-            processing.one_hot_words(
-                input_sequence, self.allowable_set, self.length
-            ).tolist(),
-            expected_output,
-        )
+    def test_one_hot_words_empty_sequence(self):
+        sequence = []
+        expected = [0, 0, 0, 0, 0]
+        result = processing.one_hot_words(sequence, self.word_to_int, self.length)
+        self.assertEqual(result.tolist(), expected)
 
-    def test_output_length_matches_specified_length(self):
-        input_sequence = ["A", "C"]
-        output = processing.one_hot_words(
-            input_sequence, self.allowable_set, self.length
-        )
-        self.assertEqual(len(output), self.length)
+    def test_one_hot_words_longer_than_length(self):
+        sequence = ["A", "B", "C", "A", "B", "C"]
+        expected = [1, 2, 3, 1, 2]
+        result = processing.one_hot_words(sequence, self.word_to_int, self.length)
+        self.assertEqual(result.tolist(), expected)
+
+    def test_one_hot_words_shorter_than_length(self):
+        sequence = ["A", "B"]
+        expected = [1, 2, 0, 0, 0]
+        result = processing.one_hot_words(sequence, self.word_to_int, self.length)
+        self.assertEqual(result.tolist(), expected)
 
 
 if __name__ == "__main__":

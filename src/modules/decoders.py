@@ -31,13 +31,17 @@ class MLP(nn.Module):
         self,
         in_dim,
         hidden_dim,
+        out_dim,
         dropout_rate=0.1,
-        num_fc_layers=2,
+        num_fc_layers=3,
     ):
         super(MLP, self).__init__()
         self.fc_layers = nn.ModuleList()
         self.num_fc_layers = num_fc_layers
         self.dropout = nn.Dropout(dropout_rate)
+
+        if num_fc_layers < 3:
+            raise ValueError("Minimum of 3 FC layers.")
 
         # First layer
         self.fc_layers.append(nn.Linear(in_dim, hidden_dim))
@@ -46,11 +50,10 @@ class MLP(nn.Module):
         for _ in range(1, num_fc_layers - 1):
             self.fc_layers.append(nn.Linear(hidden_dim, hidden_dim))
 
-        # Output layer hardcoded to 1
-        if num_fc_layers > 1:
-            self.fc_layers.append(nn.Linear(hidden_dim, 1))
-        else:
-            self.fc_layers[-1] = nn.Linear(in_dim, 1)
+        self.fc_layers.append(nn.Linear(hidden_dim, out_dim))
+
+        # Output/ Prediction
+        self.fc_layers.append(nn.Linear(out_dim, 1))
 
         if num_fc_layers == 4:
             torch.nn.init.normal_(self.fc_layers[-1].weight)
@@ -59,11 +62,70 @@ class MLP(nn.Module):
         for i, fc in enumerate(self.fc_layers):
             x = fc(x)
             if i < self.num_fc_layers - 1:
-                # Apply ReLU and dropout to all but the last layer
+                # Apply ReLU and dropout to all but the last 2 layers
                 x = F.relu(x)
                 x = self.dropout(x)
 
         return x
+
+
+# class MLP(nn.Module):
+#     """
+#     A generalized MLP (Multi-Layer Perceptron) model that dynamically adjusts the number of fully connected (fc) layers based on the input parameter.
+
+#     Args:
+#         in_dim (int): The dimension of the input feature.
+#         hidden_dim (int): The dimension of hidden layers.
+#         num_fc_layers (int): The number of fully connected layers. Defaults to 2 for a simpler MLP structure.
+#         dropout_rate (float): The dropout rate during training.
+#     """
+
+#     def __init__(
+#         self,
+#         in_dim,
+#         hidden_dim,
+#         dropout_rate=0.1,
+#         num_fc_layers=2,
+#     ):
+#         super(MLP, self).__init__()
+#         self.fc_layers = nn.ModuleList()
+#         self.num_fc_layers = num_fc_layers
+#         self.dropout = nn.Dropout(dropout_rate)
+
+#         # First layer
+#         self.fc_layers.append(nn.Linear(in_dim, hidden_dim))
+
+#         # Intermediate layers
+#         for _ in range(1, num_fc_layers - 1):
+#             self.fc_layers.append(nn.Linear(hidden_dim, hidden_dim))
+
+#         # Output layer hardcoded to 1
+#         if num_fc_layers > 1:
+#             self.fc_layers.append(nn.Linear(hidden_dim, 1))
+#         else:
+#             self.fc_layers[-1] = nn.Linear(in_dim, 1)
+
+#         if num_fc_layers == 4:
+#             torch.nn.init.normal_(self.fc_layers[-1].weight)
+
+#     def forward(self, x):
+#         for i, fc in enumerate(self.fc_layers):
+#             x = fc(x)
+#             if i < self.num_fc_layers - 1:
+#                 # Apply ReLU and dropout to all but the last layer
+#                 x = F.relu(x)
+#                 x = self.dropout(x)
+
+#         return x
+
+
+# -----------------------------------------------------------------------------------------
+# # Custom MLP
+# fc1 = nn.Linear(64 * 3, self.config.Decoder.in_dim)
+# fc2 = nn.Linear(self.config.Decoder.in_dim, self.config.Decoder.in_dim)
+# fc3 = nn.Linear(self.config.Decoder.in_dim, self.config.Decoder.hidden_dim)
+# fc_out = nn.Linear(self.config.Decoder.hidden_dim, 1)
+# decoder.fc_layers = nn.ModuleList([fc1, fc2, fc3, fc_out])
 
 
 # class MLP(nn.Module):

@@ -1,9 +1,9 @@
 General:
   fast_dev_run: False
   random_seed: 42
-  early_stop: False
+  early_stop: True
   min_delta: 0.001
-  patience_epochs: 20
+  patience_epochs: 10
 
 Dataset:
   name: "davis"
@@ -26,8 +26,9 @@ Encoder:
 
 Decoder:
   # MPL
-  in_dim: 1024
-  hidden_dim: 512
+  in_dim: 192
+  hidden_dim: 1024
+  out_dim: 512
   dropout_rate: 0.3
   num_fc_layers: 3
 
@@ -36,5 +37,5 @@ Trainer:
   train_batch_size: 256
   test_batch_size: 256
   min_epochs: 0
-  max_epochs: 3
+  max_epochs: 100
   learning_rate: 0.003

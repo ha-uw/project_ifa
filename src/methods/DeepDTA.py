@@ -143,6 +143,7 @@ class _DeepDTA:
         decoder = MLP(
             in_dim=self.config.Decoder.in_dim,
             hidden_dim=self.config.Decoder.hidden_dim,
+            out_dim=self.config.Decoder.out_dim,
             dropout_rate=self.config.Decoder.dropout_rate,
             num_fc_layers=self.config.Decoder.num_fc_layers,
         )

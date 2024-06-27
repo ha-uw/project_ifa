@@ -130,6 +130,7 @@ class _DeepDTA:
             sequence_length=self.config.Encoder.Drug.sequence_length,
             num_filters=self.config.Encoder.Drug.num_filters,
             kernel_size=self.config.Encoder.Drug.kernel_size,
+            num_conv_layers=self.config.Encoder.Drug.num_conv_layers,
         )
 
         target_encoder = CNN(
@@ -138,6 +139,7 @@ class _DeepDTA:
             sequence_length=self.config.Encoder.Target.sequence_length,
             num_filters=self.config.Encoder.Target.num_filters,
             kernel_size=self.config.Encoder.Target.kernel_size,
+            num_conv_layers=self.config.Encoder.Target.num_conv_layers,
         )
 
         decoder = MLP(

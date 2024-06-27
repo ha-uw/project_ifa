@@ -166,6 +166,7 @@ class _GraphDTA:
             kernel_size=self.config.Encoder.Target.kernel_size,
             num_filters=self.config.Encoder.Target.num_filters,
             sequence_length=self.config.Encoder.Target.sequence_length,
+            num_conv_layers=self.config.Encoder.Target.num_conv_layers,
         )
         decoder = MLP(
             dropout_rate=self.config.Decoder.dropout_rate,

@@ -142,39 +142,39 @@ class TestMakeWordsDict(unittest.TestCase):
         self.assertEqual(len(result), expected_dict_length)
 
 
-class TestOneHotWords(unittest.TestCase):
+class TestEncodeWords(unittest.TestCase):
     def setUp(self):
         self.word_to_int = {"A": 1, "B": 2, "C": 3}
         self.length = 5
 
-    def test_one_hot_words_all_known(self):
+    def test_encode_word_all_known(self):
         sequence = ["A", "B", "C"]
         expected = [1, 2, 3, 0, 0]
-        result = processing.one_hot_words(sequence, self.word_to_int, self.length)
+        result = processing.encode_word(sequence, self.word_to_int, self.length)
         self.assertEqual(result.tolist(), expected)
 
-    def test_one_hot_words_with_unknown(self):
+    def test_encode_word_with_unknown(self):
         sequence = ["A", "X", "C"]
         expected = [1, 0, 3, 0, 0]
-        result = processing.one_hot_words(sequence, self.word_to_int, self.length)
+        result = processing.encode_word(sequence, self.word_to_int, self.length)
         self.assertEqual(result.tolist(), expected)
 
-    def test_one_hot_words_empty_sequence(self):
+    def test_encode_word_empty_sequence(self):
         sequence = []
         expected = [0, 0, 0, 0, 0]
-        result = processing.one_hot_words(sequence, self.word_to_int, self.length)
+        result = processing.encode_word(sequence, self.word_to_int, self.length)
         self.assertEqual(result.tolist(), expected)
 
-    def test_one_hot_words_longer_than_length(self):
+    def test_encode_word_longer_than_length(self):
         sequence = ["A", "B", "C", "A", "B", "C"]
         expected = [1, 2, 3, 1, 2]
-        result = processing.one_hot_words(sequence, self.word_to_int, self.length)
+        result = processing.encode_word(sequence, self.word_to_int, self.length)
         self.assertEqual(result.tolist(), expected)
 
-    def test_one_hot_words_shorter_than_length(self):
+    def test_encode_word_shorter_than_length(self):
         sequence = ["A", "B"]
         expected = [1, 2, 0, 0, 0]
-        result = processing.one_hot_words(sequence, self.word_to_int, self.length)
+        result = processing.encode_word(sequence, self.word_to_int, self.length)
         self.assertEqual(result.tolist(), expected)
 
 

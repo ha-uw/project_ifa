@@ -30,32 +30,48 @@ class CNN(nn.Module):
         embedding_dim,
         sequence_length,
         num_filters,
-        kernel_size,
+        kernel_size: list | int,
+        num_conv_layers: int,
     ):
         super(CNN, self).__init__()
+        if isinstance(kernel_size, list):
+            if len(kernel_size) != num_conv_layers:
+                raise ValueError(
+                    "Number of Kernel sizes needs to be equal to the number of layers."
+                )
+        else:
+            kernel_size = [kernel_size for _ in range(num_conv_layers)]
+        self.num_conv_layers = num_conv_layers
+
         self.embedding = nn.Embedding(num_embeddings + 1, embedding_dim)
-        self.conv1 = nn.Conv1d(
-            in_channels=sequence_length,
-            out_channels=num_filters,
-            kernel_size=kernel_size[0],
+        self.conv_layers = nn.ModuleList()
+
+        # First Layer
+        self.conv_layers.append(
+            nn.Conv1d(
+                in_channels=sequence_length,
+                out_channels=num_filters,
+                kernel_size=kernel_size[0],
+            )
         )
-        self.conv2 = nn.Conv1d(
-            in_channels=num_filters,
-            out_channels=num_filters * 2,
-            kernel_size=kernel_size[1],
-        )
-        self.conv3 = nn.Conv1d(
-            in_channels=num_filters * 2,
-            out_channels=num_filters * 3,
-            kernel_size=kernel_size[2],
-        )
+
+        for i in range(1, num_conv_layers):
+            self.conv_layers.append(
+                nn.Conv1d(
+                    in_channels=num_filters * i,
+                    out_channels=num_filters * (i + 1),
+                    kernel_size=kernel_size[i],
+                )
+            )
+
         self.global_max_pool = nn.AdaptiveMaxPool1d(output_size=1)
 
     def forward(self, x):
         x = self.embedding(x)
-        x = F.relu(self.conv1(x))
-        x = F.relu(self.conv2(x))
-        x = F.relu(self.conv3(x))
+
+        for conv in self.conv_layers:
+            x = F.relu(conv(x))
+
         x = self.global_max_pool(x)
         x = x.squeeze(2)
         return x

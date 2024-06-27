@@ -17,7 +17,7 @@ from data.processing import (
     to_deepsmiles,
     seq_to_words,
     make_words_dict,
-    one_hot_words,
+    encode_word,
 )
 
 from modules.encoders import WideCNN
@@ -67,6 +67,7 @@ class _WideDTADataHandler(TDCDataset):
         )
 
         self.RAW_DATA = self.data.copy()
+        self.dataset_name = dataset_name.lower()
         self._preprocess_data()
 
     def __len__(self):
@@ -89,7 +90,7 @@ class _WideDTADataHandler(TDCDataset):
 
     def _load_motifs(self):
         mf = MotifFetcher()
-        motifs = mf.get_motifs(self.data, self.path, self.name)
+        motifs = mf.get_motifs(self.data, self.path, self.dataset_name)
 
         # Merget dfs and drop NaN
         self.data = pd.merge(
@@ -121,7 +122,9 @@ class _WideDTADataHandler(TDCDataset):
         self.word_to_int["Motif"] = make_words_dict(self.data["Motif"])
 
     def _load_words_dict(self):
-        file_path = Path(self.path, self.name, f"{self.name}_words.json")
+        file_path = Path(
+            self.path, self.dataset_name, f"{self.dataset_name}_words.json"
+        )
         if file_path.is_file():
             with open(file_path) as f:
                 self.word_to_int = json.load(f)
@@ -139,21 +142,21 @@ class _WideDTADataHandler(TDCDataset):
             self.data["Y"][index],
         )
 
-        drug = one_hot_words(
+        drug = encode_word(
             drug,
             word_to_int=self.word_to_int["Drug"],
             length=self.MAX_DRUG_LEN,
         )
         drug = torch.LongTensor(drug)
 
-        target = one_hot_words(
+        target = encode_word(
             target,
             word_to_int=self.word_to_int["Target"],
             length=self.MAX_TARGET_LEN,
         )
         target = torch.LongTensor(target)
 
-        motif = one_hot_words(
+        motif = encode_word(
             motif,
             word_to_int=self.word_to_int["Motif"],
             length=self.MAX_MOTIF_LEN,

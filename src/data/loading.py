@@ -22,27 +22,23 @@ class TDCDataset(data.Dataset):
     def __init__(
         self,
         name: str,
-        split="train",
         path="data",
         label_to_log=False,
         drug_transform=None,
         target_transform=None,
+        print_stats=True,
     ):
-        if split not in ["train", "valid", "test"]:
-            raise ValueError(
-                "Invalid split type. Expected one of: ['train', 'valid', 'test']"
-            )
 
         self.name = name.lower()
         self.path = Path(path, self.name)
         self.path.parent.mkdir(exist_ok=True, parents=True)
 
-        self.data = DTI(name=self.name, path=self.path, print_stats=True)
+        self.data = DTI(name=self.name, path=self.path, print_stats=print_stats)
 
         if label_to_log:
             self.data.convert_to_log()
 
-        self.data = self.data.get_split()[split]
+        self.data = self.data.get_data()
 
         self.drug_transform = drug_transform
         self.target_transform = target_transform

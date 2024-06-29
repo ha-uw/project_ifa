@@ -32,14 +32,9 @@ class WideDTA:
         self._widedta = _WideDTA(config_file, fast_dev_run)
 
     def make_model(self):
-        self._widedta.make_model(
-            num_embeddings_drug=num_embeddings_drug,
-            num_embeddings_target=num_embeddings_target,
-            num_embeddings_motif=num_embeddings_motif,
-        )
+        self._widedta.make_model()
 
     def train(self):
-        self.make_model()
         self._widedta.train()
 
     def test(self):
@@ -57,18 +52,19 @@ class _WideDTADataHandler(TDCDataset):
     def __init__(
         self,
         dataset_name: str,
-        path: Path,
+        split="train",
+        path="data",
         label_to_log=False,
         drug_transform=None,
         target_transform=None,
     ):
         super().__init__(
             name=dataset_name,
+            split=split,
             path=path,
             label_to_log=label_to_log,
             drug_transform=drug_transform,
             target_transform=target_transform,
-            print_stats=True,
         )
 
         self.RAW_DATA = self.data.copy(deep=True)
@@ -293,7 +289,6 @@ class _WideDTA:
 
     def __init__(self, config_file: str, fast_dev_run=False) -> None:
         self._load_configs(config_file)
-        self._seed_random()
         self.fast_dev_run = fast_dev_run
 
     def _load_configs(self, config_path: str):
@@ -301,16 +296,6 @@ class _WideDTA:
         cl.load_config(config_path=config_path)
 
         self.config = cl
-
-    def _seed_random(self):
-        pl.seed_everything(seed=self.config.General.random_seed, workers=True)
-
-    def load_data(self):
-        self.data_handler = _WideDTADataHandler(
-            dataset_name=self.config.Dataset.name,
-            path=self.config.Dataset.path,
-            label_to_log=self.config.Dataset.label_to_log,
-        )
 
     def make_model(
         self, num_embeddings_drug, num_embeddings_target, num_embeddings_motif
@@ -356,25 +341,63 @@ class _WideDTA:
         print(model)
         self.model = model
 
-    def _make_data_loaders(self, train_data, val_data):
-        train_loader = DataLoader(
-            train_data,
-            batch_size=self.config.Trainer.train_batch_size,
-            shuffle=True,
-        )
-        val_loader = DataLoader(
-            val_data,
-            batch_size=self.config.Trainer.train_batch_size,
-            shuffle=False,
-        )
-
-        return train_loader, val_loader
-
-    def train(self, train_loader, valid_loader):
+    def train(self):
         tb_logger = TensorBoardLogger(
             "outputs",
             name=f"{self.config.Dataset.name}_WideDTA",
         )
+
+        pl.seed_everything(seed=self.config.General.random_seed, workers=True)
+
+        # ---- set dataset ----
+        train_dataset = _WideDTADataHandler(
+            dataset_name=self.config.Dataset.name,
+            split="train",
+            path=self.config.Dataset.path,
+            label_to_log=self.config.Dataset.label_to_log,
+        )
+        valid_dataset = _WideDTADataHandler(
+            dataset_name=self.config.Dataset.name,
+            split="valid",
+            path=self.config.Dataset.path,
+            label_to_log=self.config.Dataset.label_to_log,
+        )
+        test_dataset = _WideDTADataHandler(
+            dataset_name=self.config.Dataset.name,
+            split="test",
+            path=self.config.Dataset.path,
+            label_to_log=self.config.Dataset.label_to_log,
+        )
+
+        train_loader = DataLoader(
+            dataset=train_dataset,
+            shuffle=True,
+            batch_size=self.config.Trainer.train_batch_size,
+            num_workers=4,
+            persistent_workers=True,
+        )
+        valid_loader = DataLoader(
+            dataset=valid_dataset,
+            shuffle=False,
+            batch_size=self.config.Trainer.test_batch_size,
+        )
+        test_loader = DataLoader(
+            dataset=test_dataset,
+            shuffle=False,
+            batch_size=self.config.Trainer.test_batch_size,
+        )
+
+        # ---- set model ----
+        if not hasattr(self, "model") or self.model is None:
+            num_embeddings_drug = len(train_dataset.word_to_int["Drug"])
+            num_embeddings_target = len(train_dataset.word_to_int["Target"])
+            num_embeddings_motif = len(train_dataset.word_to_int["Motif"])
+
+            self.make_model(
+                num_embeddings_drug=num_embeddings_drug,
+                num_embeddings_target=num_embeddings_target,
+                num_embeddings_motif=num_embeddings_motif,
+            )
 
         # ---- training and evaluation ----
         checkpoint_callback = ModelCheckpoint(
@@ -404,16 +427,7 @@ class _WideDTA:
 
         trainer.fit(self.model, train_loader, valid_loader)
 
-    def run_k_fold_validation(self, n_splits=5):
-        kfold = KFold(n_splits=n_splits, shuffle=True)
-
-        for train_idx, val_idx in kfold.split(self.data_handler):
-            train_data = self.data_handler[train_idx]
-            val_data = self.data_handler[val_idx]
-
-            train_loader, val_loader = self._make_data_loaders(
-                train_data=train_data, val_data=val_data
-            )
-
-            self.train(train_loader, val_loader)
-            # TODO: collect metrics...
+        trainer.test(
+            self.model,
+            test_loader,
+        )

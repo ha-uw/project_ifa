@@ -108,7 +108,7 @@ class _WideDTADataHandler(Dataset):
         motifs = mf.get_motifs(self.data, self.path, self.dataset_name)
 
         # Merget dfs and drop NaN
-        self.data = pd.merge(self.data, motifs, on=["Target_ID"], how="left").dropna()
+        self.data = pd.merge(self.data, motifs, on=["Target_ID"], how="left").fillna("")
 
         # Reorder columns
         self.data = self.data[["Drug_ID", "Drug", "Target_ID", "Target", "Motif", "Y"]]

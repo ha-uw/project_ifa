@@ -1,5 +1,6 @@
 from methods.widedta import WideDTA
 from methods.deepdta import DeepDTA
+from methods.graphdta import GraphDTA
 from pathlib import Path
 
 from torch import set_float32_matmul_precision
@@ -14,9 +15,11 @@ if __name__ == "__main__":
         fast_dev_run=False,
     )
 
-    # dd = DeepDTA(
-    #     config_file=r"C:\Users\raulc\code\projeto_ifá\configs\deepdta.yaml",
-    #     fast_dev_run=False,
-    # )
+    dd = DeepDTA(
+        config_file=Path("configs", "DeepDTA", "davis.yaml"),
+        fast_dev_run=False,
+    )
 
-    wd.run_k_fold_validation(5)
+    gd = GraphDTA(config_file=Path("configs", "GraphDTA", "davis.yaml"))
+
+    gd.run_k_fold_validation(5)

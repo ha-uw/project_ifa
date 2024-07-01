@@ -1,5 +1,4 @@
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import pandas as pd
 import pytorch_lightning as pl
@@ -364,7 +363,33 @@ class _WideDTA:
 
         return train_loader, val_loader
 
-    def train(self, train_loader, valid_loader):
+    def _get_logger(self, fold_n):
+        output_dir = Path("outputs", "WideDTA")
+        dataset_dir = Path(output_dir, self.config.Dataset.name)
+
+        dataset_dir.mkdir(parents=True, exist_ok=True)
+
+        if not hasattr(self, "_version"):
+            version_dirs = [d for d in dataset_dir.glob("version_*/") if d.is_dir()]
+            version_names = [d.name for d in version_dirs]
+
+            if version_names:
+                latest_version = max(version_names, key=lambda x: int(x.split("_")[1]))
+                next_version_num = int(latest_version.split("_")[1]) + 1
+            else:
+                next_version_num = 0
+
+            self._version = str(next_version_num)
+
+        tb_logger = TensorBoardLogger(
+            save_dir=output_dir,
+            name=self.config.Dataset.name,
+            version=Path(self._version, f"fold_{fold_n + 1}"),
+        )
+
+        return tb_logger
+
+    def train(self, train_loader, valid_loader, fold_n=0):
         # ---- set model ----
         if not hasattr(self, "model") or self.model is None:
             num_embeddings_drug = len(train_loader.dataset.word_to_int["Drug"])
@@ -377,14 +402,11 @@ class _WideDTA:
                 num_embeddings_motif=num_embeddings_motif,
             )
 
-        tb_logger = TensorBoardLogger(
-            "outputs",
-            name=f"{self.config.Dataset.name}_WideDTA",
-        )
-
         # ---- training and evaluation ----
         checkpoint_callback = ModelCheckpoint(
-            filename="{epoch}-{step}-{valid_loss:.4f}", monitor="valid_loss", mode="min"
+            filename="{epoch:02d}-{step}-{valid_loss:.4f}",
+            monitor="valid_loss",
+            mode="min",
         )
         early_stop_callback = EarlyStopping(
             monitor="valid_loss",
@@ -393,6 +415,9 @@ class _WideDTA:
             verbose=False,
             mode="min",
         )
+
+        # Logger
+        tb_logger = self._get_logger(fold_n=fold_n)
 
         callbacks = [checkpoint_callback]
 
@@ -410,41 +435,7 @@ class _WideDTA:
 
         trainer.fit(self.model, train_loader, valid_loader)
 
-    def evaluate(self, val_loader):
-        self.model.eval()  # Set the model to evaluation mode
-        total_ci = 0
-        total_loss = 0
-        total_accuracy = 0
-        total_samples = 0
-
-        with torch.no_grad():  # Disable gradient calculation
-            for inputs, labels in val_loader:
-                outputs = self.model(inputs)  # Get model predictions
-
-                # Calculate loss (assuming a loss function is defined)
-                loss = mse(outputs, labels)
-                total_loss += loss.item()
-
-                # Calculate accuracy
-                _, predicted = torch.max(outputs.data, 1)
-                total_accuracy += (predicted == labels).sum().item()
-                total_samples += labels.size(0)
-
-                # Concordance index
-                ci = concordance_index(outputs, labels)
-                total_ci += ci
-
-        # Calculate average loss and accuracy
-        average_ci = total_ci / len(val_loader)
-        average_loss = total_loss / len(val_loader)
-        average_accuracy = total_accuracy / total_samples
-
-        # Set the model back to training mode
-        self.model.train()
-
-        # Return the metrics
-        return {"loss": average_loss, "accuracy": average_accuracy, "ci": average_ci}
-
+    # ==========================================================================
     def run_k_fold_validation(self, n_splits=5):
         kfold = KFold(n_splits=n_splits, shuffle=True)
 
@@ -455,31 +446,17 @@ class _WideDTA:
             print_stats=True,
         )
 
-        all_metrics = []  # Step 1: Initialize metrics list
-
-        for train_idx, val_idx in kfold.split(dataset.data):
+        for fold_n, (train_idx, val_idx) in enumerate(kfold.split(dataset)):
             train_dataset = _WideDTADataHandler(dataset=dataset)
             train_dataset.slice_data(train_idx)
 
             val_dataset = _WideDTADataHandler(dataset=dataset)
             val_dataset.slice_data(val_idx)
 
-            train_loader, val_loader = self._make_data_loaders(
+            train_loader, valid_loader = self._make_data_loaders(
                 train_dataset=train_dataset, val_dataset=val_dataset
             )
 
-            self.train(train_loader, val_loader)
-
-            # Assuming there's a method to evaluate and return metrics
-            metrics = self.evaluate(val_loader)
-            all_metrics.append(metrics)  # Step 2: Collect metrics
-
-        # Step 3: Calculate average metrics
-        average_metrics = {
-            metric: sum(values) / len(values)
-            for metric, values in zip(all_metrics[0].keys(), zip(*all_metrics))
-        }
-
-        # Step 4: Print or return the average metrics
-        print("Average metrics across all folds:", average_metrics)
-        return average_metrics
+            self.train(
+                train_loader=train_loader, valid_loader=valid_loader, fold_n=fold_n
+            )

@@ -17,6 +17,7 @@ class TDCDataset(Dataset):
         path="data",
         label_to_log=False,
         print_stats=True,
+        split=None,
     ):
 
         self.name = name.lower()
@@ -28,7 +29,10 @@ class TDCDataset(Dataset):
         if label_to_log:
             self.data.convert_to_log()
 
-        self.data = self.data.get_data()
+        if split:
+            self.data = self.data.get_split()[split]
+        else:
+            self.data = self.data.get_data()
 
     def __len__(self):
         return len(self.data)

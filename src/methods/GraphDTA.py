@@ -1,12 +1,14 @@
 import torch
 import torch.nn.functional as F
 import pytorch_lightning as pl
+from torch.utils.data import Dataset
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from torch_geometric.data.lightning import LightningDataset
 from torch_geometric import data as pyg_data
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
+from sklearn.model_selection import KFold
 from pathlib import Path
 from .configs import ConfigLoader
 from data.loading import TDCDataset
@@ -31,30 +33,21 @@ class GraphDTA:
     def train(self):
         self._graphdta.train()
 
+    def run_k_fold_validation(self, n_splits=5):
+        self._graphdta.run_k_fold_validation(n_splits=n_splits)
+
     def predict(self):
         raise NotImplementedError
 
 
-class GraphDTADataHandler(TDCDataset):
-    def __init__(
-        self,
-        dataset_name: str,
-        split="train",
-        path="./data",
-        label_to_log=False,
-        drug_transform=None,
-        target_transform=None,
-    ):
-        super().__init__(
-            name=dataset_name,
-            split=split,
-            path=path,
-            label_to_log=label_to_log,
-            drug_transform=drug_transform,
-            target_transform=target_transform,
-        )
+class GraphDTADataHandler(Dataset):
+    def __init__(self, dataset: Dataset):
+        self.dataset = dataset
+        self.path = dataset.path
+        self.dataset_name = dataset.name
+        self.data = dataset.data.copy(deep=True)
 
-    def _graphdta(self, drug, target, label):
+    def _process_data(self, drug, target, label):
         c_size, features, edge_index = smile_to_graph(drug)
         drug = pyg_data.Data(
             x=torch.Tensor(features),
@@ -66,6 +59,13 @@ class GraphDTADataHandler(TDCDataset):
 
         return drug, target
 
+    def __len__(self):
+        return len(self.data)
+
+    def slice_data(self, indices: list):
+        self.data = self.data.iloc[indices]
+        self.data.reset_index(drop=True, inplace=True)
+
     def _fetch_data(self, index):
         drug, target, label = (
             self.data["Drug"][index],
@@ -74,7 +74,7 @@ class GraphDTADataHandler(TDCDataset):
         )
 
         label = torch.FloatTensor([label])
-        drug, target = self._graphdta(drug, target, label)
+        drug, target = self._process_data(drug, target, label)
 
         return drug, target, label
 
@@ -133,6 +133,10 @@ class _GraphDTA:
         self.config = cl
 
     def make_model(self):
+        if hasattr(self, "model"):
+            print(self.model)
+            return
+
         match self.drug_encoder:
             case "GAT":
                 drug_encoder = GAT(
@@ -186,52 +190,52 @@ class _GraphDTA:
         print(model)
         self.model = model
 
-    def train(self):
-        tb_logger = TensorBoardLogger(
-            "outputs",
-            name=f"GraphDTA_{self.drug_encoder}_{self.config.Dataset.name}",
-        )
-
-        pl.seed_everything(seed=self.config.General.random_seed, workers=True)
-
-        # ---- set dataset ----
-        train_dataset = GraphDTADataHandler(
-            dataset_name=self.config.Dataset.name,
-            split="train",
-            path=self.config.Dataset.path,
-            label_to_log=self.config.Dataset.label_to_log,
-        )
-        valid_dataset = GraphDTADataHandler(
-            dataset_name=self.config.Dataset.name,
-            split="valid",
-            path=self.config.Dataset.path,
-            label_to_log=self.config.Dataset.label_to_log,
-        )
-        test_dataset = GraphDTADataHandler(
-            dataset_name=self.config.Dataset.name,
-            split="test",
-            path=self.config.Dataset.path,
-            label_to_log=self.config.Dataset.label_to_log,
-        )
-
+    def _make_data_loaders(self, train_dataset, val_dataset):
         pl_dataset = LightningDataset(
             train_dataset,
-            valid_dataset,
-            test_dataset,
+            val_dataset,
             batch_size=self.config.Trainer.train_batch_size,
         )
 
         train_loader = pl_dataset.train_dataloader()
-        valid_loader = pl_dataset.val_dataloader()
-        test_loader = pl_dataset.test_dataloader()
+        val_loader = pl_dataset.val_dataloader()
 
-        # ---- set model ----
-        if not hasattr(self, "model") or self.model is None:
-            self.make_model()
+        return train_loader, val_loader
+
+    def _get_logger(self, fold_n):
+        output_dir = Path("outputs", "GraphDTA")
+        dataset_dir = Path(output_dir, self.config.Dataset.name)
+
+        dataset_dir.mkdir(parents=True, exist_ok=True)
+
+        if not hasattr(self, "_version"):
+            version_dirs = [d for d in dataset_dir.glob("version_*/") if d.is_dir()]
+            version_names = [d.name for d in version_dirs]
+
+            if version_names:
+                latest_version = max(version_names, key=lambda x: int(x.split("_")[1]))
+                next_version_num = int(latest_version.split("_")[1]) + 1
+            else:
+                next_version_num = 0
+
+            self._version = str(next_version_num)
+
+        tb_logger = TensorBoardLogger(
+            save_dir=output_dir,
+            name=self.config.Dataset.name,
+            version=Path(self._version, f"fold_{fold_n + 1}"),
+        )
+
+        return tb_logger
+
+    def train(self, train_loader, valid_loader, fold_n=0):
+        self.make_model()
 
         # ---- training and evaluation ----
         checkpoint_callback = ModelCheckpoint(
-            filename="{epoch}-{step}-{valid_loss:.4f}", monitor="valid_loss", mode="min"
+            filename="{epoch:02d}-{step}-{valid_loss:.4f}",
+            monitor="valid_loss",
+            mode="min",
         )
         early_stop_callback = EarlyStopping(
             monitor="valid_loss",
@@ -240,6 +244,8 @@ class _GraphDTA:
             verbose=False,
             mode="min",
         )
+
+        tb_logger = self._get_logger(fold_n=fold_n)
 
         callbacks = [checkpoint_callback]
 
@@ -256,7 +262,28 @@ class _GraphDTA:
         )
 
         trainer.fit(self.model, train_loader, valid_loader)
-        trainer.test(
-            self.model,
-            test_loader,
+
+    def run_k_fold_validation(self, n_splits=5):
+        kfold = KFold(n_splits=n_splits, shuffle=True)
+
+        dataset = TDCDataset(
+            name=self.config.Dataset.name,
+            path=self.config.Dataset.path,
+            label_to_log=self.config.Dataset.label_to_log,
+            print_stats=True,
         )
+
+        for fold_n, (train_idx, val_idx) in enumerate(kfold.split(dataset)):
+            train_dataset = GraphDTADataHandler(dataset=dataset)
+            train_dataset.slice_data(train_idx)
+
+            val_dataset = GraphDTADataHandler(dataset=dataset)
+            val_dataset.slice_data(val_idx)
+
+            train_loader, valid_loader = self._make_data_loaders(
+                train_dataset=train_dataset, val_dataset=val_dataset
+            )
+
+            self.train(
+                train_loader=train_loader, valid_loader=valid_loader, fold_n=fold_n
+            )

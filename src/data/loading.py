@@ -1,22 +1,14 @@
 import pandas as pd
 from pathlib import Path
 from tdc.multi_pred import DTI
-from torch.utils import data
+from torch.utils.data import Dataset
 
 
-class TDCDataset(data.Dataset):
-    """
-    A custom dataset for loading and processing original TDC data, which is used as input data in DeepDTA model.
+class TDCDataset(Dataset):
+    """ """
 
-    Args:
-         name (str): TDC dataset name.
-         split (str): Data split type (train, valid or test).
-         path (str): dataset download/local load path (default: "./data")
-         drug_transform: Transform operation (default: None)
-         target_transform: Transform operation (default: None)
-         y_log (bool): Whether convert y values to log space. (default: True)
-    """
-
+    name: str
+    path: Path
     data: pd.DataFrame
 
     def __init__(
@@ -24,8 +16,6 @@ class TDCDataset(data.Dataset):
         name: str,
         path="data",
         label_to_log=False,
-        drug_transform=None,
-        target_transform=None,
         print_stats=True,
     ):
 
@@ -39,9 +29,6 @@ class TDCDataset(data.Dataset):
             self.data.convert_to_log()
 
         self.data = self.data.get_data()
-
-        self.drug_transform = drug_transform
-        self.target_transform = target_transform
 
     def __len__(self):
         return len(self.data)

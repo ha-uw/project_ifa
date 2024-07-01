@@ -36,7 +36,7 @@ class TestMethods(unittest.TestCase):
         widedta = WideDTA(config_file, fast_dev_run=True)
 
         try:
-            widedta.train()
+            widedta.run_k_fold_validation(5)
         except Exception as e:
             self.fail(f"widedta function failed with an exception: {e}")
 

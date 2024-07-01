@@ -8,6 +8,7 @@ import logging
 from pathlib import Path
 import numpy as np
 from rdkit import Chem
+from functools import lru_cache
 import networkx as nx
 import deepsmiles
 import json
@@ -30,6 +31,7 @@ def one_hot_encode_with_unknown(x, allowable_set) -> np.array:
     return np.array([x == s for s in allowable_set], dtype=int)
 
 
+@lru_cache(maxsize=32)
 def get_atom_features(atom) -> np.array:
     symbol_encoding = one_hot_encode_with_unknown(
         atom.GetSymbol(), AtomFeatures.CHARATOMSET
@@ -58,6 +60,7 @@ def get_atom_features(atom) -> np.array:
     )
 
 
+@lru_cache(maxsize=32)
 def smile_to_graph(smiles: str):
     """ """
     mol = Chem.MolFromSmiles(smiles)
@@ -83,6 +86,7 @@ def tokenize_sequence(sequence: str, char_set: dict, max_length: int = 85) -> np
     return encoding
 
 
+@lru_cache(maxsize=32)
 def tokenize_smiles(
     smiles: str, max_length: int = 85, to_isomeric: bool = False
 ) -> np.array:
@@ -97,6 +101,7 @@ def tokenize_smiles(
     return tokenize_sequence(smiles, Tokens.CHARISOSMISET, max_length)
 
 
+@lru_cache(maxsize=32)
 def tokenize_target(sequence: str, max_length: int = 1200) -> np.array:
     """Tokenizes a protein sequence."""
 
@@ -104,6 +109,7 @@ def tokenize_target(sequence: str, max_length: int = 1200) -> np.array:
 
 
 # WideDTA ----------------------------------------------------------------------
+@lru_cache(maxsize=32)
 def to_deepsmiles(smiles: str):
     converter = deepsmiles.Converter(rings=True, branches=True)
     deep_smiles = converter.encode(smiles)
@@ -161,6 +167,7 @@ def to_deepsmiles(smiles: str):
 #     return tuple(words)
 
 
+@lru_cache(maxsize=32)
 def seq_to_words(sequence: str, word_len: int, max_length: int):
     # Early exit for invalid input
     if word_len <= 0 or max_length <= 0:

@@ -3,11 +3,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 import pandas as pd
 import pytorch_lightning as pl
-from torch.utils.data import DataLoader
+from torch.utils.data import Dataset, DataLoader
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from sklearn.model_selection import KFold
+
 from pathlib import Path
 import json
 
@@ -23,7 +24,7 @@ from data.processing import (
 
 from modules.encoders import WideCNN
 from modules.decoders import MLP
-from data.evaluation import concordance_index
+from data.evaluation import concordance_index, mse
 
 
 # =============================== Code ==================================
@@ -31,52 +32,43 @@ class WideDTA:
     def __init__(self, config_file: str, fast_dev_run=False) -> None:
         self._widedta = _WideDTA(config_file, fast_dev_run)
 
-    def make_model(self):
-        self._widedta.make_model(
-            num_embeddings_drug=num_embeddings_drug,
-            num_embeddings_target=num_embeddings_target,
-            num_embeddings_motif=num_embeddings_motif,
-        )
+    # def make_model(self):
+    #     self._widedta.make_model(
+    #         num_embeddings_drug=num_embeddings_drug,
+    #         num_embeddings_target=num_embeddings_target,
+    #         num_embeddings_motif=num_embeddings_motif,
+    #     )
 
     def train(self):
         self.make_model()
         self._widedta.train()
 
+    def run_k_fold_validation(self, n_splits=5):
+        self._widedta.run_k_fold_validation(n_splits=n_splits)
+
     def test(self):
         raise NotImplementedError("This will be implemented soon.")
 
 
-class _WideDTADataHandler(TDCDataset):
+class _WideDTADataHandler(Dataset):
     MAX_DRUG_LEN = 85
     MAX_TARGET_LEN = 1000
     MAX_MOTIF_LEN = 500
-    RAW_DATA: pd.DataFrame
 
     word_to_int = {"Drug": {}, "Target": {}, "Motif": {}}
 
-    def __init__(
-        self,
-        dataset_name: str,
-        path: Path,
-        label_to_log=False,
-        drug_transform=None,
-        target_transform=None,
-    ):
-        super().__init__(
-            name=dataset_name,
-            path=path,
-            label_to_log=label_to_log,
-            drug_transform=drug_transform,
-            target_transform=target_transform,
-            print_stats=True,
-        )
-
-        self.RAW_DATA = self.data.copy(deep=True)
-        self.dataset_name = dataset_name.lower()
-        self._preprocess_data()
+    def __init__(self, dataset: Dataset):
+        self.dataset = dataset
+        self.path = dataset.path
+        self.dataset_name = dataset.name
+        self.data = dataset.data.copy(deep=True)
 
     def __len__(self):
         return len(self.data)
+
+    def slice_data(self, indices: list):
+        self.data = self.data.iloc[indices]
+        self._preprocess_data()
 
     def _preprocess_data(self):
         try:
@@ -117,9 +109,7 @@ class _WideDTADataHandler(TDCDataset):
         motifs = mf.get_motifs(self.data, self.path, self.dataset_name)
 
         # Merget dfs and drop NaN
-        self.data = pd.merge(
-            self.RAW_DATA, motifs, on=["Target_ID"], how="left"
-        ).dropna()
+        self.data = pd.merge(self.data, motifs, on=["Target_ID"], how="left").dropna()
 
         # Reorder columns
         self.data = self.data[["Drug_ID", "Drug", "Target_ID", "Target", "Motif", "Y"]]
@@ -306,7 +296,7 @@ class _WideDTA:
         pl.seed_everything(seed=self.config.General.random_seed, workers=True)
 
     def load_data(self):
-        self.data_handler = _WideDTADataHandler(
+        self.data = _WideDTADataHandler(
             dataset_name=self.config.Dataset.name,
             path=self.config.Dataset.path,
             label_to_log=self.config.Dataset.label_to_log,
@@ -315,6 +305,10 @@ class _WideDTA:
     def make_model(
         self, num_embeddings_drug, num_embeddings_target, num_embeddings_motif
     ):
+        if hasattr(self, "model"):
+            print("Model already exists")
+            return
+
         drug_encoder = WideCNN(
             num_embeddings=num_embeddings_drug,
             sequence_length=self.config.Encoder.Drug.sequence_length,
@@ -356,14 +350,14 @@ class _WideDTA:
         print(model)
         self.model = model
 
-    def _make_data_loaders(self, train_data, val_data):
+    def _make_data_loaders(self, train_dataset, val_dataset):
         train_loader = DataLoader(
-            train_data,
+            train_dataset,
             batch_size=self.config.Trainer.train_batch_size,
             shuffle=True,
         )
         val_loader = DataLoader(
-            val_data,
+            val_dataset,
             batch_size=self.config.Trainer.train_batch_size,
             shuffle=False,
         )
@@ -371,6 +365,18 @@ class _WideDTA:
         return train_loader, val_loader
 
     def train(self, train_loader, valid_loader):
+        # ---- set model ----
+        if not hasattr(self, "model") or self.model is None:
+            num_embeddings_drug = len(train_loader.dataset.word_to_int["Drug"])
+            num_embeddings_target = len(train_loader.dataset.word_to_int["Target"])
+            num_embeddings_motif = len(train_loader.dataset.word_to_int["Motif"])
+
+            self.make_model(
+                num_embeddings_drug=num_embeddings_drug,
+                num_embeddings_target=num_embeddings_target,
+                num_embeddings_motif=num_embeddings_motif,
+            )
+
         tb_logger = TensorBoardLogger(
             "outputs",
             name=f"{self.config.Dataset.name}_WideDTA",
@@ -404,16 +410,76 @@ class _WideDTA:
 
         trainer.fit(self.model, train_loader, valid_loader)
 
+    def evaluate(self, val_loader):
+        self.model.eval()  # Set the model to evaluation mode
+        total_ci = 0
+        total_loss = 0
+        total_accuracy = 0
+        total_samples = 0
+
+        with torch.no_grad():  # Disable gradient calculation
+            for inputs, labels in val_loader:
+                outputs = self.model(inputs)  # Get model predictions
+
+                # Calculate loss (assuming a loss function is defined)
+                loss = mse(outputs, labels)
+                total_loss += loss.item()
+
+                # Calculate accuracy
+                _, predicted = torch.max(outputs.data, 1)
+                total_accuracy += (predicted == labels).sum().item()
+                total_samples += labels.size(0)
+
+                # Concordance index
+                ci = concordance_index(outputs, labels)
+                total_ci += ci
+
+        # Calculate average loss and accuracy
+        average_ci = total_ci / len(val_loader)
+        average_loss = total_loss / len(val_loader)
+        average_accuracy = total_accuracy / total_samples
+
+        # Set the model back to training mode
+        self.model.train()
+
+        # Return the metrics
+        return {"loss": average_loss, "accuracy": average_accuracy, "ci": average_ci}
+
     def run_k_fold_validation(self, n_splits=5):
         kfold = KFold(n_splits=n_splits, shuffle=True)
 
-        for train_idx, val_idx in kfold.split(self.data_handler):
-            train_data = self.data_handler[train_idx]
-            val_data = self.data_handler[val_idx]
+        dataset = TDCDataset(
+            name=self.config.Dataset.name,
+            path=self.config.Dataset.path,
+            label_to_log=self.config.Dataset.label_to_log,
+            print_stats=True,
+        )
+
+        all_metrics = []  # Step 1: Initialize metrics list
+
+        for train_idx, val_idx in kfold.split(dataset.data):
+            train_dataset = _WideDTADataHandler(dataset=dataset)
+            train_dataset.slice_data(train_idx)
+
+            val_dataset = _WideDTADataHandler(dataset=dataset)
+            val_dataset.slice_data(val_idx)
 
             train_loader, val_loader = self._make_data_loaders(
-                train_data=train_data, val_data=val_data
+                train_dataset=train_dataset, val_dataset=val_dataset
             )
 
             self.train(train_loader, val_loader)
-            # TODO: collect metrics...
+
+            # Assuming there's a method to evaluate and return metrics
+            metrics = self.evaluate(val_loader)
+            all_metrics.append(metrics)  # Step 2: Collect metrics
+
+        # Step 3: Calculate average metrics
+        average_metrics = {
+            metric: sum(values) / len(values)
+            for metric, values in zip(all_metrics[0].keys(), zip(*all_metrics))
+        }
+
+        # Step 4: Print or return the average metrics
+        print("Average metrics across all folds:", average_metrics)
+        return average_metrics

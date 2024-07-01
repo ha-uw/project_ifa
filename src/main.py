@@ -19,4 +19,4 @@ if __name__ == "__main__":
     #     fast_dev_run=False,
     # )
 
-    wd.train()
+    wd.run_k_fold_validation(5)

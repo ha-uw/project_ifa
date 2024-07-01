@@ -2,6 +2,8 @@ import aiofiles
 import asyncio
 import aiohttp
 from bs4 import BeautifulSoup
+from functools import lru_cache
+
 from pathlib import Path
 import pandas as pd
 from tqdm import tqdm

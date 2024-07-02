@@ -238,7 +238,9 @@ class _WideDTATrainer(pl.LightningModule):
         loss = F.mse_loss(y_pred, y.view(-1, 1))
         if self.ci_metric:
             ci = concordance_index(y, y_pred)
+            self.log("train_step_ci", ci, on_epoch=True, on_step=True, prog_bar=True)
             self.logger.log_metrics({"train_step_ci": ci}, self.global_step)
+        self.log("train_step_loss", ci, on_epoch=True, on_step=True, prog_bar=True)
         self.logger.log_metrics({"train_step_loss": loss}, self.global_step)
 
         return loss
@@ -250,8 +252,10 @@ class _WideDTATrainer(pl.LightningModule):
 
         if self.ci_metric:
             ci = concordance_index(y, y_pred)
-            self.log("valid_ci", ci, on_epoch=True, on_step=False)
-        self.log("valid_loss", loss, on_epoch=True, on_step=False)
+            self.log("valid_ci", ci, on_epoch=True, on_step=False, prog_bar=True)
+            self.logger.log_metrics({"valid_step_ci": ci}, self.global_step)
+        self.log("valid_loss", loss, on_epoch=True, on_step=False, prog_bar=True)
+        self.logger.log_metrics({"valid_step_loss": loss}, self.global_step)
 
         return loss
 
@@ -427,6 +431,7 @@ class _WideDTA:
         )
 
         trainer.fit(self.model, train_loader, valid_loader)
+        print(checkpoint_callback.best_model_path)
 
     # ==========================================================================
     def run_k_fold_validation(self, n_splits=5):

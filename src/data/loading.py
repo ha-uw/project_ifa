@@ -18,6 +18,7 @@ class TDCDataset(Dataset):
         label_to_log=False,
         print_stats=True,
         split=None,
+        harmonize_affinities=False,
     ):
 
         self.name = name.lower()
@@ -25,6 +26,9 @@ class TDCDataset(Dataset):
         self.path.parent.mkdir(exist_ok=True, parents=True)
 
         self.data = DTI(name=self.name, path=self.path, print_stats=print_stats)
+
+        if harmonize_affinities:
+            self.data.harmonize_affinities(mode="mean")
 
         if label_to_log:
             self.data.convert_to_log()

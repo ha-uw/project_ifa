@@ -54,7 +54,19 @@ class DeepDTADataHandler(Dataset):
 
     def slice_data(self, indices: list):
         self.data = self.data.iloc[indices]
+        self._filter_data()
         self.data.reset_index(drop=True, inplace=True)
+
+    def _filter_data(self):
+        original_size = self.data.shape[0]
+        self.data.drop_duplicates(subset=["Drug", "Target"], inplace=True)
+        self.data.fillna("")
+
+        n_rows_out = original_size - self.data.shape[0]
+
+        print(
+            f"Rows filtered out: {n_rows_out} ({(n_rows_out * 100)/original_size :.2f}%)"
+        )
 
     def _fetch_data(self, index):
         drug, target, label = (

@@ -9,7 +9,8 @@ General:
 Dataset:
   name: "bindingdb_ic50"
   path: "data"
-  label_to_log: False
+  label_to_log: True
+  harmonize_affinities: True
 
 Encoder:
   num_filters: 32

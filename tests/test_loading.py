@@ -20,6 +20,11 @@ class TestTDCDataset(unittest.TestCase):
         for column in expected_columns:
             self.assertIn(column, self.dataset.data.columns)
 
+    def test_harmonize_affinities(self):
+        self.dataset = TDCDataset(
+            name="davis", path="data", print_stats=False, harmonize_affinities=True
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

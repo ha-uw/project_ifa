@@ -10,6 +10,7 @@ Dataset:
   name: "kiba"
   path: "data"
   label_to_log: False
+  harmonize_affinities: False
 
 Encoder:
   num_filters: 32

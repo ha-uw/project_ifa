@@ -67,14 +67,15 @@ class _WideDTADataHandler(Dataset):
 
     def slice_data(self, indices: list):
         self.data = self.data.iloc[indices]
+        print("Fold size:", self.data.shape[0])
         self._preprocess_data()
 
     def _preprocess_data(self):
         try:
             hifens = "-" * 50
             print("Starting Preprocessing.", hifens)
-            self._load_motifs()
             self._filter_data()
+            self._load_motifs()
             self._smiles_to_deep()
             self._convert_seqs_to_words()
             self._load_words_dict()
@@ -86,22 +87,14 @@ class _WideDTADataHandler(Dataset):
 
     def _filter_data(self):
         original_size = self.data.shape[0]
-        self.data.drop_duplicates(subset=["Drug_ID", "Target_ID"], inplace=True)
-        self.data.dropna(inplace=True)
+        self.data.drop_duplicates(subset=["Drug", "Target"], inplace=True)
+        self.data.fillna("")
 
-        self.data.groupby("Drug_ID")["Target_ID"].nunique()
-        drug_target_counts = (
-            self.data.groupby("Drug_ID")["Target_ID"]
-            .nunique()
-            .reset_index(name="Target_Count")
+        n_rows_out = original_size - self.data.shape[0]
+
+        print(
+            f"Rows filtered out: {n_rows_out} ({(n_rows_out * 100)/original_size :.2f}%)"
         )
-        drug_ids_to_remove = drug_target_counts[
-            drug_target_counts["Target_Count"] < 10
-        ]["Drug_ID"]
-
-        self.data = self.data[~self.data["Drug_ID"].isin(drug_ids_to_remove)]
-
-        print(f"Rows filtered out: {original_size - self.data.shape[0]}")
 
     def _load_motifs(self):
         mf = MotifFetcher()
@@ -444,6 +437,7 @@ class _WideDTA:
             path=self.config.Dataset.path,
             label_to_log=self.config.Dataset.label_to_log,
             print_stats=True,
+            harmonize_affinities=self.config.Dataset.harmonize_affinities,
         )
 
         for fold_n, (train_idx, val_idx) in enumerate(kfold.split(dataset)):

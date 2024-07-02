@@ -11,6 +11,7 @@ Dataset:
   name: "davis"
   path: "data"
   label_to_log: True
+  harmonize_affinities: False
 
 Encoder:
   Drug:

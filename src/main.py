@@ -11,7 +11,7 @@ set_float32_matmul_precision("medium")
 if __name__ == "__main__":
 
     wd = WideDTA(
-        config_file=Path("configs", "WideDTA", "davis.yaml"),
+        config_file=Path("configs", "WideDTA", "bindingdb_ki.yaml"),
         fast_dev_run=False,
     )
 

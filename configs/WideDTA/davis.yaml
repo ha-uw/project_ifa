@@ -4,7 +4,7 @@ General:
   random_seed: 42
   early_stop: True
   min_delta: 0.001
-  patience_epochs: 10
+  patience_epochs: 20
 
 Dataset:
   name: "davis"

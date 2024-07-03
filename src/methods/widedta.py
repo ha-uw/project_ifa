@@ -2,6 +2,7 @@ import torch
 import torch.nn.functional as F
 import pandas as pd
 import pytorch_lightning as pl
+import numpy as np
 from torch.utils.data import Dataset, DataLoader
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -23,7 +24,7 @@ from data.processing import (
 
 from modules.encoders import WideCNN
 from modules.decoders import MLP
-from data.evaluation import concordance_index, mse
+from data.evaluation import concordance_index
 
 
 # =============================== Code ==================================
@@ -44,6 +45,11 @@ class WideDTA:
 
     def run_k_fold_validation(self, n_splits=5):
         self._widedta.run_k_fold_validation(n_splits=n_splits)
+
+    def resume_training(self, version, last_completed_fold):
+        self._widedta.resume_training(
+            version=version, last_completed_fold=last_completed_fold
+        )
 
     def test(self):
         raise NotImplementedError("This will be implemented soon.")
@@ -238,9 +244,9 @@ class _WideDTATrainer(pl.LightningModule):
         loss = F.mse_loss(y_pred, y.view(-1, 1))
         if self.ci_metric:
             ci = concordance_index(y, y_pred)
-            self.log("train_step_ci", ci, on_epoch=True, on_step=True, prog_bar=True)
+            self.log("train_ci", ci, on_epoch=True, on_step=True, prog_bar=True)
             self.logger.log_metrics({"train_step_ci": ci}, self.global_step)
-        self.log("train_step_loss", ci, on_epoch=True, on_step=True, prog_bar=True)
+        self.log("train_loss", ci, on_epoch=True, on_step=True, prog_bar=True)
         self.logger.log_metrics({"train_step_loss": loss}, self.global_step)
 
         return loss
@@ -298,13 +304,9 @@ class _WideDTA:
             label_to_log=self.config.Dataset.label_to_log,
         )
 
-    def make_model(
+    def _make_model(
         self, num_embeddings_drug, num_embeddings_target, num_embeddings_motif
     ):
-        if hasattr(self, "model"):
-            print("Model already exists")
-            return
-
         drug_encoder = WideCNN(
             num_embeddings=num_embeddings_drug,
             sequence_length=self.config.Encoder.Drug.sequence_length,
@@ -381,23 +383,22 @@ class _WideDTA:
         tb_logger = TensorBoardLogger(
             save_dir=output_dir,
             name=self.config.Dataset.name,
-            version=Path(self._version, f"fold_{fold_n + 1}"),
+            version=Path(self._version, f"fold_{fold_n}"),
         )
 
         return tb_logger
 
     def train(self, train_loader, valid_loader, fold_n=0):
         # ---- set model ----
-        if not hasattr(self, "model") or self.model is None:
-            num_embeddings_drug = len(train_loader.dataset.word_to_int["Drug"])
-            num_embeddings_target = len(train_loader.dataset.word_to_int["Target"])
-            num_embeddings_motif = len(train_loader.dataset.word_to_int["Motif"])
+        num_embeddings_drug = len(train_loader.dataset.word_to_int["Drug"])
+        num_embeddings_target = len(train_loader.dataset.word_to_int["Target"])
+        num_embeddings_motif = len(train_loader.dataset.word_to_int["Motif"])
 
-            self.make_model(
-                num_embeddings_drug=num_embeddings_drug,
-                num_embeddings_target=num_embeddings_target,
-                num_embeddings_motif=num_embeddings_motif,
-            )
+        self._make_model(
+            num_embeddings_drug=num_embeddings_drug,
+            num_embeddings_target=num_embeddings_target,
+            num_embeddings_motif=num_embeddings_motif,
+        )
 
         # ---- training and evaluation ----
         checkpoint_callback = ModelCheckpoint(
@@ -434,9 +435,101 @@ class _WideDTA:
         print(checkpoint_callback.best_model_path)
 
     # ==========================================================================
-    def run_k_fold_validation(self, n_splits=5):
-        kfold = KFold(n_splits=n_splits, shuffle=True)
+    # def run_k_fold_validation(self, n_splits=5):
+    #     kfold = KFold(n_splits=n_splits, shuffle=True)
 
+    #     dataset = TDCDataset(
+    #         name=self.config.Dataset.name,
+    #         path=self.config.Dataset.path,
+    #         label_to_log=self.config.Dataset.label_to_log,
+    #         print_stats=True,
+    #         harmonize_affinities=self.config.Dataset.harmonize_affinities,
+    #     )
+
+    #     for fold_n, (train_idx, val_idx) in enumerate(kfold.split(dataset)):
+    #         train_dataset = _WideDTADataHandler(dataset=dataset)
+    #         train_dataset.slice_data(train_idx)
+
+    #         val_dataset = _WideDTADataHandler(dataset=dataset)
+    #         val_dataset.slice_data(val_idx)
+
+    #         train_loader, valid_loader = self._make_data_loaders(
+    #             train_dataset=train_dataset, val_dataset=val_dataset
+    #         )
+
+    #         self.train(
+    #             train_loader=train_loader, valid_loader=valid_loader, fold_n=fold_n
+    #         )
+
+    # def run_k_fold_validation(self, n_splits=5):
+    #     kfold = KFold(n_splits=n_splits, shuffle=True)
+
+    #     dataset = TDCDataset(
+    #         name=self.config.Dataset.name,
+    #         path=self.config.Dataset.path,
+    #         label_to_log=self.config.Dataset.label_to_log,
+    #         print_stats=True,
+    #         harmonize_affinities=self.config.Dataset.harmonize_affinities,
+    #     )
+
+    #     folds_file = Path(dataset.path) / "folds.json"
+
+    #     if folds_file.exists():
+    #         with open(folds_file, "r") as file:
+    #             folds_data = json.load(file)
+    #             folds_indices = [
+    #                 (np.array(fold["train"]), np.array(fold["val"]))
+    #                 for fold in folds_data
+    #             ]
+    #     else:
+    #         folds_indices = list(kfold.split(dataset))
+    #         folds_data = [
+    #             {"train": train_idx.tolist(), "val": val_idx.tolist()}
+    #             for train_idx, val_idx in folds_indices
+    #         ]
+    #         with open(folds_file, "w") as file:
+    #             json.dump(folds_data, file)
+
+    #     for fold_n, (train_idx, val_idx) in enumerate(folds_indices):
+    #         train_dataset = _WideDTADataHandler(dataset=dataset)
+    #         train_dataset.slice_data(train_idx)
+
+    #         val_dataset = _WideDTADataHandler(dataset=dataset)
+    #         val_dataset.slice_data(val_idx)
+
+    #         train_loader, valid_loader = self._make_data_loaders(
+    #             train_dataset=train_dataset, val_dataset=val_dataset
+    #         )
+
+    #         self.train(
+    #             train_loader=train_loader, valid_loader=valid_loader, fold_n=fold_n
+    #         )
+
+    def _load_or_create_folds(self, kfold, dataset, folds_file):
+        if folds_file.exists():
+            print("Loading folds from file.")
+            with folds_file.open("r") as file:
+                folds_data = json.load(file)
+        else:
+            folds_data = [
+                {"train": train_idx.tolist(), "val": val_idx.tolist()}
+                for train_idx, val_idx in kfold.split(dataset)
+            ]
+            with folds_file.open("w") as file:
+                json.dump(folds_data, file)
+
+        return [(np.array(fold["train"]), np.array(fold["val"])) for fold in folds_data]
+
+    def _prepare_datasets(self, dataset, train_idx, val_idx):
+        train_dataset = _WideDTADataHandler(dataset=dataset)
+        train_dataset.slice_data(train_idx)
+        val_dataset = _WideDTADataHandler(dataset=dataset)
+        val_dataset.slice_data(val_idx)
+
+        return train_dataset, val_dataset
+
+    def run_k_fold_validation(self, n_splits=5, start_from_fold=0):
+        kfold = KFold(n_splits=n_splits, shuffle=True)
         dataset = TDCDataset(
             name=self.config.Dataset.name,
             path=self.config.Dataset.path,
@@ -444,18 +537,22 @@ class _WideDTA:
             print_stats=True,
             harmonize_affinities=self.config.Dataset.harmonize_affinities,
         )
+        folds_file = Path(dataset.path) / f"{dataset.name}_folds.json"
+        folds_indices = self._load_or_create_folds(kfold, dataset, folds_file)
 
-        for fold_n, (train_idx, val_idx) in enumerate(kfold.split(dataset)):
-            train_dataset = _WideDTADataHandler(dataset=dataset)
-            train_dataset.slice_data(train_idx)
-
-            val_dataset = _WideDTADataHandler(dataset=dataset)
-            val_dataset.slice_data(val_idx)
-
+        for fold_n, (train_idx, val_idx) in enumerate(folds_indices):
+            if fold_n < start_from_fold:
+                continue
+            train_dataset, val_dataset = self._prepare_datasets(
+                dataset, train_idx, val_idx
+            )
             train_loader, valid_loader = self._make_data_loaders(
                 train_dataset=train_dataset, val_dataset=val_dataset
             )
-
             self.train(
                 train_loader=train_loader, valid_loader=valid_loader, fold_n=fold_n
             )
+
+    def resume_training(self, version: str | int, last_completed_fold: str | int):
+        self._version = str(version)
+        self.run_k_fold_validation(n_splits=5, start_from_fold=last_completed_fold + 1)

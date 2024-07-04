@@ -1,5 +1,6 @@
 # GraphDTA
 General:
+  fast_dev_run: False
   random_seed: 42
   output_dim: 128
   early_stop: False
@@ -10,6 +11,7 @@ Dataset:
   name: "davis"
   path: "data"
   label_to_log: True
+  harmonize_affinities: False
 
 Encoder:
   GAT:

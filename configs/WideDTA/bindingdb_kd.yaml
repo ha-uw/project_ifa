@@ -2,14 +2,15 @@
 General:
   fast_dev_run: False
   random_seed: 42
-  early_stop: True
+  early_stop: False
   min_delta: 0.001
   patience_epochs: 10
 
 Dataset:
   name: "bindingdb_kd"
   path: "data"
-  label_to_log: False
+  label_to_log: True
+  harmonize_affinities: True
 
 Encoder:
   num_filters: 32

@@ -2,6 +2,8 @@ import aiofiles
 import asyncio
 import aiohttp
 from bs4 import BeautifulSoup
+from functools import lru_cache
+
 from pathlib import Path
 import pandas as pd
 from tqdm import tqdm
@@ -118,13 +120,13 @@ class MotifFetcher:
         return False
 
     def _filter_data(self, data):
-        data.dropna(inplace=True)
-        data.drop_duplicates(subset=["Target_ID"], inplace=True)
+        filtered_data = data.dropna(subset=["Target"])
+        filtered_data.drop_duplicates(subset=["Target_ID"], inplace=True)
 
-        return
+        return filtered_data
 
     def get_motifs(self, data: Dataset, path, name):
-        self._filter_data(data)  # remove NaN values and duplicates
+        filtered_data = self._filter_data(data)  # remove NaN values and duplicates
 
         motif_file_path = Path(path, f"{name.lower()}_motifs.csv")
 
@@ -133,11 +135,11 @@ class MotifFetcher:
 
             print("Motif file loaded successfully.")
             updated = self._update_motif_file(
-                data, motif_file_path=motif_file_path, local_data=local_data
+                filtered_data, motif_file_path=motif_file_path, local_data=local_data
             )
         else:
             motif_file_path.parent.mkdir(exist_ok=True, parents=True)
-            updated = self._update_motif_file(data, motif_file_path)
+            updated = self._update_motif_file(filtered_data, motif_file_path)
 
         if updated:
             local_data = pd.read_csv(motif_file_path)

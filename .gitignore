@@ -2,4 +2,5 @@ venv/
 tests.*
 *.tab
 __pycache__
-/data/
+/data/**/*.tab
+outputs/*

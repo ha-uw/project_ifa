@@ -1,12 +1,14 @@
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import pandas as pd
 import pytorch_lightning as pl
-from torch.utils.data import DataLoader
+import numpy as np
+from torch.utils.data import Dataset, DataLoader
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+from sklearn.model_selection import KFold
+
 from pathlib import Path
 import json
 
@@ -30,48 +32,49 @@ class WideDTA:
     def __init__(self, config_file: str, fast_dev_run=False) -> None:
         self._widedta = _WideDTA(config_file, fast_dev_run)
 
-    def make_model(self):
-        self._widedta.make_model()
+    # def make_model(self):
+    #     self._widedta.make_model(
+    #         num_embeddings_drug=num_embeddings_drug,
+    #         num_embeddings_target=num_embeddings_target,
+    #         num_embeddings_motif=num_embeddings_motif,
+    #     )
 
     def train(self):
+        self.make_model()
         self._widedta.train()
+
+    def run_k_fold_validation(self, n_splits=5):
+        self._widedta.run_k_fold_validation(n_splits=n_splits)
+
+    def resume_training(self, version, last_completed_fold):
+        self._widedta.resume_training(
+            version=version, last_completed_fold=last_completed_fold
+        )
 
     def test(self):
         raise NotImplementedError("This will be implemented soon.")
 
 
-class _WideDTADataHandler(TDCDataset):
+class _WideDTADataHandler(Dataset):
     MAX_DRUG_LEN = 85
     MAX_TARGET_LEN = 1000
     MAX_MOTIF_LEN = 500
-    RAW_DATA: pd.DataFrame
 
     word_to_int = {"Drug": {}, "Target": {}, "Motif": {}}
 
-    def __init__(
-        self,
-        dataset_name: str,
-        split="train",
-        path="data",
-        label_to_log=False,
-        drug_transform=None,
-        target_transform=None,
-    ):
-        super().__init__(
-            name=dataset_name,
-            split=split,
-            path=path,
-            label_to_log=label_to_log,
-            drug_transform=drug_transform,
-            target_transform=target_transform,
-        )
-
-        self.RAW_DATA = self.data.copy()
-        self.dataset_name = dataset_name.lower()
-        self._preprocess_data()
+    def __init__(self, dataset: Dataset):
+        self.dataset = dataset
+        self.path = dataset.path
+        self.dataset_name = dataset.name
+        self.data = dataset.data.copy(deep=True)
 
     def __len__(self):
         return len(self.data)
+
+    def slice_data(self, indices: list):
+        self.data = self.data.iloc[indices]
+        print("Fold size:", self.data.shape[0])
+        self._preprocess_data()
 
     def _preprocess_data(self):
         try:
@@ -89,16 +92,22 @@ class _WideDTADataHandler(TDCDataset):
             raise Exception(e)
 
     def _filter_data(self):
-        pass
+        original_size = self.data.shape[0]
+        self.data.drop_duplicates(subset=["Drug", "Target"], inplace=True)
+        self.data.fillna("")
+
+        n_rows_out = original_size - self.data.shape[0]
+
+        print(
+            f"Rows filtered out: {n_rows_out} ({(n_rows_out * 100)/original_size :.2f}%)"
+        )
 
     def _load_motifs(self):
         mf = MotifFetcher()
         motifs = mf.get_motifs(self.data, self.path, self.dataset_name)
 
         # Merget dfs and drop NaN
-        self.data = pd.merge(
-            self.RAW_DATA, motifs, on=["Target_ID"], how="left"
-        ).dropna()
+        self.data = pd.merge(self.data, motifs, on=["Target_ID"], how="left").fillna("")
 
         # Reorder columns
         self.data = self.data[["Drug_ID", "Drug", "Target_ID", "Target", "Motif", "Y"]]
@@ -235,7 +244,9 @@ class _WideDTATrainer(pl.LightningModule):
         loss = F.mse_loss(y_pred, y.view(-1, 1))
         if self.ci_metric:
             ci = concordance_index(y, y_pred)
+            self.log("train_ci", ci, on_epoch=True, on_step=True, prog_bar=True)
             self.logger.log_metrics({"train_step_ci": ci}, self.global_step)
+        self.log("train_loss", ci, on_epoch=True, on_step=True, prog_bar=True)
         self.logger.log_metrics({"train_step_loss": loss}, self.global_step)
 
         return loss
@@ -247,8 +258,10 @@ class _WideDTATrainer(pl.LightningModule):
 
         if self.ci_metric:
             ci = concordance_index(y, y_pred)
-            self.log("valid_ci", ci, on_epoch=True, on_step=False)
-        self.log("valid_loss", loss, on_epoch=True, on_step=False)
+            self.log("valid_ci", ci, on_epoch=True, on_step=False, prog_bar=True)
+            self.logger.log_metrics({"valid_step_ci": ci}, self.global_step)
+        self.log("valid_loss", loss, on_epoch=True, on_step=False, prog_bar=True)
+        self.logger.log_metrics({"valid_step_loss": loss}, self.global_step)
 
         return loss
 
@@ -272,6 +285,7 @@ class _WideDTA:
 
     def __init__(self, config_file: str, fast_dev_run=False) -> None:
         self._load_configs(config_file)
+        self._seed_random()
         self.fast_dev_run = fast_dev_run
 
     def _load_configs(self, config_path: str):
@@ -280,7 +294,17 @@ class _WideDTA:
 
         self.config = cl
 
-    def make_model(
+    def _seed_random(self):
+        pl.seed_everything(seed=self.config.General.random_seed, workers=True)
+
+    def load_data(self):
+        self.data = _WideDTADataHandler(
+            dataset_name=self.config.Dataset.name,
+            path=self.config.Dataset.path,
+            label_to_log=self.config.Dataset.label_to_log,
+        )
+
+    def _make_model(
         self, num_embeddings_drug, num_embeddings_target, num_embeddings_motif
     ):
         drug_encoder = WideCNN(
@@ -309,7 +333,7 @@ class _WideDTA:
             hidden_dim=self.config.Decoder.hidden_dim,
             out_dim=self.config.Decoder.out_dim,
             dropout_rate=self.config.Decoder.dropout_rate,
-            num_fc_layers=3,
+            num_fc_layers=self.config.Decoder.num_fc_layers,
         )
 
         model = _WideDTATrainer(
@@ -324,67 +348,63 @@ class _WideDTA:
         print(model)
         self.model = model
 
-    def train(self):
-        tb_logger = TensorBoardLogger(
-            "outputs",
-            name=f"{self.config.Dataset.name}_WideDTA",
-        )
-
-        pl.seed_everything(seed=self.config.General.random_seed, workers=True)
-
-        # ---- set dataset ----
-        train_dataset = _WideDTADataHandler(
-            dataset_name=self.config.Dataset.name,
-            split="train",
-            path=self.config.Dataset.path,
-            label_to_log=self.config.Dataset.label_to_log,
-        )
-        valid_dataset = _WideDTADataHandler(
-            dataset_name=self.config.Dataset.name,
-            split="valid",
-            path=self.config.Dataset.path,
-            label_to_log=self.config.Dataset.label_to_log,
-        )
-        test_dataset = _WideDTADataHandler(
-            dataset_name=self.config.Dataset.name,
-            split="test",
-            path=self.config.Dataset.path,
-            label_to_log=self.config.Dataset.label_to_log,
-        )
-
+    def _make_data_loaders(self, train_dataset, val_dataset):
         train_loader = DataLoader(
-            dataset=train_dataset,
-            shuffle=True,
+            train_dataset,
             batch_size=self.config.Trainer.train_batch_size,
+            shuffle=True,
         )
-        valid_loader = DataLoader(
-            dataset=valid_dataset,
+        val_loader = DataLoader(
+            val_dataset,
+            batch_size=self.config.Trainer.train_batch_size,
             shuffle=False,
-            batch_size=self.config.Trainer.test_batch_size,
-        )
-        test_loader = DataLoader(
-            dataset=test_dataset,
-            shuffle=False,
-            batch_size=self.config.Trainer.test_batch_size,
         )
 
-        self.TRAIN_WORDSET_LEN = 125
+        return train_loader, val_loader
 
+    def _get_logger(self, fold_n):
+        output_dir = Path("outputs", "WideDTA")
+        dataset_dir = Path(output_dir, self.config.Dataset.name)
+
+        dataset_dir.mkdir(parents=True, exist_ok=True)
+
+        if not hasattr(self, "_version"):
+            version_dirs = [d for d in dataset_dir.glob("version_*/") if d.is_dir()]
+            version_names = [d.name for d in version_dirs]
+
+            if version_names:
+                latest_version = max(version_names, key=lambda x: int(x.split("_")[1]))
+                next_version_num = int(latest_version.split("_")[1]) + 1
+            else:
+                next_version_num = 0
+
+            self._version = str(next_version_num)
+
+        tb_logger = TensorBoardLogger(
+            save_dir=output_dir,
+            name=self.config.Dataset.name,
+            version=Path(self._version, f"fold_{fold_n}"),
+        )
+
+        return tb_logger
+
+    def train(self, train_loader, valid_loader, fold_n=0):
         # ---- set model ----
-        if not hasattr(self, "model") or self.model is None:
-            num_embeddings_drug = len(train_dataset.word_to_int["Drug"])
-            num_embeddings_target = len(train_dataset.word_to_int["Target"])
-            num_embeddings_motif = len(train_dataset.word_to_int["Motif"])
+        num_embeddings_drug = len(train_loader.dataset.word_to_int["Drug"])
+        num_embeddings_target = len(train_loader.dataset.word_to_int["Target"])
+        num_embeddings_motif = len(train_loader.dataset.word_to_int["Motif"])
 
-            self.make_model(
-                num_embeddings_drug=num_embeddings_drug,
-                num_embeddings_target=num_embeddings_target,
-                num_embeddings_motif=num_embeddings_motif,
-            )
+        self._make_model(
+            num_embeddings_drug=num_embeddings_drug,
+            num_embeddings_target=num_embeddings_target,
+            num_embeddings_motif=num_embeddings_motif,
+        )
 
         # ---- training and evaluation ----
         checkpoint_callback = ModelCheckpoint(
-            filename="{epoch}-{step}-{valid_loss:.4f}", monitor="valid_loss", mode="min"
+            filename="{epoch:02d}-{step}-{valid_loss:.4f}",
+            monitor="valid_loss",
+            mode="min",
         )
         early_stop_callback = EarlyStopping(
             monitor="valid_loss",
@@ -393,6 +413,9 @@ class _WideDTA:
             verbose=False,
             mode="min",
         )
+
+        # Logger
+        tb_logger = self._get_logger(fold_n=fold_n)
 
         callbacks = [checkpoint_callback]
 
@@ -409,7 +432,127 @@ class _WideDTA:
         )
 
         trainer.fit(self.model, train_loader, valid_loader)
-        trainer.test(
-            self.model,
-            test_loader,
+        print(checkpoint_callback.best_model_path)
+
+    # ==========================================================================
+    # def run_k_fold_validation(self, n_splits=5):
+    #     kfold = KFold(n_splits=n_splits, shuffle=True)
+
+    #     dataset = TDCDataset(
+    #         name=self.config.Dataset.name,
+    #         path=self.config.Dataset.path,
+    #         label_to_log=self.config.Dataset.label_to_log,
+    #         print_stats=True,
+    #         harmonize_affinities=self.config.Dataset.harmonize_affinities,
+    #     )
+
+    #     for fold_n, (train_idx, val_idx) in enumerate(kfold.split(dataset)):
+    #         train_dataset = _WideDTADataHandler(dataset=dataset)
+    #         train_dataset.slice_data(train_idx)
+
+    #         val_dataset = _WideDTADataHandler(dataset=dataset)
+    #         val_dataset.slice_data(val_idx)
+
+    #         train_loader, valid_loader = self._make_data_loaders(
+    #             train_dataset=train_dataset, val_dataset=val_dataset
+    #         )
+
+    #         self.train(
+    #             train_loader=train_loader, valid_loader=valid_loader, fold_n=fold_n
+    #         )
+
+    # def run_k_fold_validation(self, n_splits=5):
+    #     kfold = KFold(n_splits=n_splits, shuffle=True)
+
+    #     dataset = TDCDataset(
+    #         name=self.config.Dataset.name,
+    #         path=self.config.Dataset.path,
+    #         label_to_log=self.config.Dataset.label_to_log,
+    #         print_stats=True,
+    #         harmonize_affinities=self.config.Dataset.harmonize_affinities,
+    #     )
+
+    #     folds_file = Path(dataset.path) / "folds.json"
+
+    #     if folds_file.exists():
+    #         with open(folds_file, "r") as file:
+    #             folds_data = json.load(file)
+    #             folds_indices = [
+    #                 (np.array(fold["train"]), np.array(fold["val"]))
+    #                 for fold in folds_data
+    #             ]
+    #     else:
+    #         folds_indices = list(kfold.split(dataset))
+    #         folds_data = [
+    #             {"train": train_idx.tolist(), "val": val_idx.tolist()}
+    #             for train_idx, val_idx in folds_indices
+    #         ]
+    #         with open(folds_file, "w") as file:
+    #             json.dump(folds_data, file)
+
+    #     for fold_n, (train_idx, val_idx) in enumerate(folds_indices):
+    #         train_dataset = _WideDTADataHandler(dataset=dataset)
+    #         train_dataset.slice_data(train_idx)
+
+    #         val_dataset = _WideDTADataHandler(dataset=dataset)
+    #         val_dataset.slice_data(val_idx)
+
+    #         train_loader, valid_loader = self._make_data_loaders(
+    #             train_dataset=train_dataset, val_dataset=val_dataset
+    #         )
+
+    #         self.train(
+    #             train_loader=train_loader, valid_loader=valid_loader, fold_n=fold_n
+    #         )
+
+    def _load_or_create_folds(self, kfold, dataset, folds_file):
+        if folds_file.exists():
+            print("Loading folds from file.")
+            with folds_file.open("r") as file:
+                folds_data = json.load(file)
+        else:
+            folds_data = [
+                {"train": train_idx.tolist(), "val": val_idx.tolist()}
+                for train_idx, val_idx in kfold.split(dataset)
+            ]
+            with folds_file.open("w") as file:
+                json.dump(folds_data, file)
+
+        return [(np.array(fold["train"]), np.array(fold["val"])) for fold in folds_data]
+
+    def _prepare_datasets(self, dataset, train_idx, val_idx):
+        train_dataset = _WideDTADataHandler(dataset=dataset)
+        train_dataset.slice_data(train_idx)
+        val_dataset = _WideDTADataHandler(dataset=dataset)
+        val_dataset.slice_data(val_idx)
+
+        return train_dataset, val_dataset
+
+    def run_k_fold_validation(self, n_splits=5, start_from_fold=0):
+        kfold = KFold(n_splits=n_splits, shuffle=True)
+        dataset = TDCDataset(
+            name=self.config.Dataset.name,
+            path=self.config.Dataset.path,
+            label_to_log=self.config.Dataset.label_to_log,
+            print_stats=True,
+            harmonize_affinities=self.config.Dataset.harmonize_affinities,
         )
+        folds_file = Path(dataset.path) / f"{dataset.name}_folds.json"
+        folds_indices = self._load_or_create_folds(kfold, dataset, folds_file)
+
+        for fold_n, (train_idx, val_idx) in enumerate(folds_indices):
+            if fold_n < start_from_fold:
+                continue
+            train_dataset, val_dataset = self._prepare_datasets(
+                dataset, train_idx, val_idx
+            )
+            train_loader, valid_loader = self._make_data_loaders(
+                train_dataset=train_dataset, val_dataset=val_dataset
+            )
+            self.train(
+                train_loader=train_loader, valid_loader=valid_loader, fold_n=fold_n
+            )
+
+    def resume_training(self, version: str | int, last_completed_fold: str | int):
+        self._version = str(version)
+        self.run_k_fold_validation(n_splits=5, start_from_fold=last_completed_fold + 1)

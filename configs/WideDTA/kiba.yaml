@@ -2,7 +2,7 @@
 General:
   fast_dev_run: False
   random_seed: 42
-  early_stop: True
+  early_stop: False
   min_delta: 0.001
   patience_epochs: 10
 
@@ -10,6 +10,7 @@ Dataset:
   name: "kiba"
   path: "data"
   label_to_log: False
+  harmonize_affinities: False
 
 Encoder:
   num_filters: 32

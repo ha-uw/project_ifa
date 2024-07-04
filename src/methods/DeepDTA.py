@@ -1,5 +1,7 @@
 import torch
 import torch.nn.functional as F
+import json
+import numpy as np
 import pytorch_lightning as pl
 from torch.utils.data import Dataset, DataLoader
 from pytorch_lightning.callbacks import ModelCheckpoint
@@ -7,6 +9,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pathlib import Path
 from sklearn.model_selection import KFold
+
 
 from .configs import ConfigLoader
 
@@ -31,6 +34,11 @@ class DeepDTA:
 
     def run_k_fold_validation(self, n_splits=5):
         self._deepdta.run_k_fold_validation(n_splits=n_splits)
+
+    def resume_training(self, version, last_completed_fold):
+        self._deepdta.resume_training(
+            version=version, last_completed_fold=last_completed_fold
+        )
 
     def test(self):
         raise NotImplementedError("This will be implemented soon.")
@@ -251,7 +259,30 @@ class _DeepDTA:
 
         trainer.fit(self.model, train_loader, valid_loader)
 
-    def run_k_fold_validation(self, n_splits=5):
+    def _load_or_create_folds(self, kfold, dataset, folds_file):
+        if folds_file.exists():
+            print("Loading folds from file.")
+            with folds_file.open("r") as file:
+                folds_data = json.load(file)
+        else:
+            folds_data = [
+                {"train": train_idx.tolist(), "val": val_idx.tolist()}
+                for train_idx, val_idx in kfold.split(dataset)
+            ]
+            with folds_file.open("w") as file:
+                json.dump(folds_data, file)
+
+        return [(np.array(fold["train"]), np.array(fold["val"])) for fold in folds_data]
+
+    def _prepare_datasets(self, dataset, train_idx, val_idx):
+        train_dataset = DeepDTADataHandler(dataset=dataset)
+        train_dataset.slice_data(train_idx)
+        val_dataset = DeepDTADataHandler(dataset=dataset)
+        val_dataset.slice_data(val_idx)
+
+        return train_dataset, val_dataset
+
+    def run_k_fold_validation(self, n_splits=5, start_from_fold=0):
         kfold = KFold(n_splits=n_splits, shuffle=True)
 
         dataset = TDCDataset(
@@ -261,17 +292,37 @@ class _DeepDTA:
             print_stats=True,
         )
 
-        for fold_n, (train_idx, val_idx) in enumerate(kfold.split(dataset)):
-            train_dataset = DeepDTADataHandler(dataset=dataset)
-            train_dataset.slice_data(train_idx)
+        folds_file = Path(dataset.path) / f"{dataset.name}_folds.json"
+        folds_indices = self._load_or_create_folds(kfold, dataset, folds_file)
 
-            val_dataset = DeepDTADataHandler(dataset=dataset)
-            val_dataset.slice_data(val_idx)
-
+        for fold_n, (train_idx, val_idx) in enumerate(folds_indices):
+            if fold_n < start_from_fold:
+                continue
+            train_dataset, val_dataset = self._prepare_datasets(
+                dataset, train_idx, val_idx
+            )
             train_loader, valid_loader = self._make_data_loaders(
                 train_dataset=train_dataset, val_dataset=val_dataset
             )
-
             self.train(
                 train_loader=train_loader, valid_loader=valid_loader, fold_n=fold_n
             )
+
+        # for fold_n, (train_idx, val_idx) in enumerate(kfold.split(dataset)):
+        #     train_dataset = DeepDTADataHandler(dataset=dataset)
+        #     train_dataset.slice_data(train_idx)
+
+        #     val_dataset = DeepDTADataHandler(dataset=dataset)
+        #     val_dataset.slice_data(val_idx)
+
+        #     train_loader, valid_loader = self._make_data_loaders(
+        #         train_dataset=train_dataset, val_dataset=val_dataset
+        #     )
+
+        #     self.train(
+        #         train_loader=train_loader, valid_loader=valid_loader, fold_n=fold_n
+        #     )
+
+    def resume_training(self, version: str | int, last_completed_fold: str | int):
+        self._version = str(version)
+        self.run_k_fold_validation(n_splits=5, start_from_fold=last_completed_fold + 1)

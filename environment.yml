@@ -291,12 +291,12 @@ dependencies:
   - zipp=3.17.0=py311haa95532_0
   - zlib=1.2.13=h2466b09_6
   - zstd=1.5.5=hd43e919_0
+  - pip=24.0
   - pip:
       - beniget==0.4.1
       - biopython==1.83
       - conkit==0.13.3
       - gast==0.5.4
-      - pip==24.0
       - ply==3.11
       - prettytable==3.10.0
       - pythran==0.9.5

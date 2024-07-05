@@ -40,11 +40,12 @@ class GraphDTA:
 
 
 class GraphDTADataHandler(Dataset):
-    def __init__(self, dataset: Dataset):
+    def __init__(self, dataset: Dataset, target_max_len=1200):
         self.dataset = dataset
         self.path = dataset.path
         self.dataset_name = dataset.name
         self.data = dataset.data.copy(deep=True)
+        self.target_max_len = target_max_len
 
     def _process_data(self, drug, target, label):
         c_size, features, edge_index = smile_to_graph(drug)
@@ -54,7 +55,7 @@ class GraphDTADataHandler(Dataset):
             y=torch.Tensor([label]),
         )
         drug.__setitem__("c_size", torch.LongTensor([c_size]))
-        target = torch.LongTensor(tokenize_target(target))
+        target = torch.LongTensor(tokenize_target(target, self.target_max_len))
 
         return drug, target
 
@@ -276,9 +277,13 @@ class _GraphDTA:
         return [(np.array(fold["train"]), np.array(fold["val"])) for fold in folds_data]
 
     def _prepare_datasets(self, dataset, train_idx, val_idx):
-        train_dataset = GraphDTADataHandler(dataset=dataset)
+        train_dataset = GraphDTADataHandler(
+            dataset=dataset, target_max_len=self.config.Target.sequence_length
+        )
         train_dataset.slice_data(train_idx)
-        val_dataset = GraphDTADataHandler(dataset=dataset)
+        val_dataset = GraphDTADataHandler(
+            dataset=dataset, target_max_len=self.config.Target.sequence_length
+        )
         val_dataset.slice_data(val_idx)
 
         return train_dataset, val_dataset

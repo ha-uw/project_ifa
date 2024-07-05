@@ -278,11 +278,11 @@ class _GraphDTA:
 
     def _prepare_datasets(self, dataset, train_idx, val_idx):
         train_dataset = GraphDTADataHandler(
-            dataset=dataset, target_max_len=self.config.Target.sequence_length
+            dataset=dataset, target_max_len=self.config.Encoder.Target.sequence_length
         )
         train_dataset.slice_data(train_idx)
         val_dataset = GraphDTADataHandler(
-            dataset=dataset, target_max_len=self.config.Target.sequence_length
+            dataset=dataset, target_max_len=self.config.Encoder.Target.sequence_length
         )
         val_dataset.slice_data(val_idx)
 

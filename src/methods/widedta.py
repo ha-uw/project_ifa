@@ -13,18 +13,18 @@ from pathlib import Path
 import json
 
 from .configs import ConfigLoader
-from data.loading import TDCDataset
-from data.preprocessing import MotifFetcher
-from data.processing import (
+from src.data.loading import TDCDataset
+from src.data.preprocessing import MotifFetcher
+from src.data.processing import (
     to_deepsmiles,
     seq_to_words,
     make_words_dict,
     encode_word,
 )
 
-from modules.encoders import WideCNN
-from modules.decoders import MLP
-from modules.trainers import BaseDTATrainer
+from src.modules.encoders import WideCNN
+from src.modules.decoders import MLP
+from src.modules.trainers import BaseDTATrainer
 
 
 # =============================== Code ==================================

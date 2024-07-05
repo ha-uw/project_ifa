@@ -2,7 +2,7 @@ import torch
 import pytorch_lightning as pl
 import torch.nn.functional as F
 
-from data.evaluation import concordance_index
+from src.data.evaluation import concordance_index
 
 
 # Trainer ----------------------------------------------------------------------

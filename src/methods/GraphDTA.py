@@ -14,11 +14,11 @@ from sklearn.model_selection import KFold
 from pathlib import Path
 
 from .configs import ConfigLoader
-from data.loading import TDCDataset
-from data.processing import smile_to_graph, tokenize_target
-from modules.decoders import MLP
-from modules.encoders import CNN, GAT_GCN, GAT, GCN, GIN
-from modules.trainers import BaseDTATrainer
+from src.data.loading import TDCDataset
+from src.data.processing import smile_to_graph, tokenize_target
+from src.modules.decoders import MLP
+from src.modules.encoders import CNN, GAT_GCN, GAT, GCN, GIN
+from src.modules.trainers import BaseDTATrainer
 
 
 # =============================== Code ==================================

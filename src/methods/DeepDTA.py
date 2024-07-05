@@ -12,11 +12,11 @@ from pathlib import Path
 from sklearn.model_selection import KFold
 
 from .configs import ConfigLoader
-from data.processing import tokenize_smiles, tokenize_target
-from data.loading import TDCDataset
-from modules.encoders import CNN
-from modules.decoders import MLP
-from modules.trainers import BaseDTATrainer
+from src.data.processing import tokenize_smiles, tokenize_target
+from src.data.loading import TDCDataset
+from src.modules.encoders import CNN
+from src.modules.decoders import MLP
+from src.modules.trainers import BaseDTATrainer
 
 
 # =============================== Code ==================================

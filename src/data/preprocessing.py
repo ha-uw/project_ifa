@@ -8,7 +8,6 @@ from pathlib import Path
 import pandas as pd
 from tqdm import tqdm
 from torch.utils.data import Dataset
-import re
 
 
 class MotifFetcher:

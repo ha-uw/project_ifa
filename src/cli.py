@@ -1,7 +1,7 @@
 import argparse
-from methods.widedta import WideDTA
-from methods.deepdta import DeepDTA
-from methods.graphdta import GraphDTA
+from src.methods.widedta import WideDTA
+from .methods.deepdta import DeepDTA
+from .methods.graphdta import GraphDTA
 from pathlib import Path
 from torch import set_float32_matmul_precision
 

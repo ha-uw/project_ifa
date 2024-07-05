@@ -279,6 +279,7 @@ class _DeepDTA:
             path=self.config.Dataset.path,
             label_to_log=self.config.Dataset.label_to_log,
             print_stats=True,
+            harmonize_affinities=self.config.Dataset.harmonize_affinities,
         )
 
         k_fold = KFold(

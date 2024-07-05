@@ -300,6 +300,7 @@ class _GraphDTA:
             path=self.config.Dataset.path,
             label_to_log=self.config.Dataset.label_to_log,
             print_stats=True,
+            harmonize_affinities=self.config.Dataset.harmonize_affinities,
         )
 
         folds_file = Path(dataset.path) / f"{dataset.name}_folds.json"

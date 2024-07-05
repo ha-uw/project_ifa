@@ -24,7 +24,7 @@ from data.processing import (
 
 from modules.encoders import WideCNN
 from modules.decoders import MLP
-from data.evaluation import concordance_index
+from modules.trainers import BaseDTATrainer
 
 
 # =============================== Code ==================================
@@ -32,15 +32,7 @@ class WideDTA:
     def __init__(self, config_file: str, fast_dev_run=False) -> None:
         self._widedta = _WideDTA(config_file, fast_dev_run)
 
-    # def make_model(self):
-    #     self._widedta.make_model(
-    #         num_embeddings_drug=num_embeddings_drug,
-    #         num_embeddings_target=num_embeddings_target,
-    #         num_embeddings_motif=num_embeddings_motif,
-    #     )
-
     def train(self):
-        self.make_model()
         self._widedta.train()
 
     def run_k_fold_validation(self, n_splits=5):
@@ -186,7 +178,7 @@ class _WideDTADataHandler(Dataset):
         return drug, target, motif, label
 
 
-class _WideDTATrainer(pl.LightningModule):
+class _WideDTATrainer(BaseDTATrainer):
     """ """
 
     def __init__(
@@ -196,25 +188,17 @@ class _WideDTATrainer(pl.LightningModule):
         motif_encoder,
         decoder,
         lr=0.003,
-        ci_metric=False,
-        **kwargs,
+        ci_metric=True,
     ):
-
-        super(_WideDTATrainer, self).__init__(**kwargs)
-        # self.save_hyperparameters()
-        self.lr = lr
-        self.ci_metric = ci_metric
-        self.drug_encoder = drug_encoder
-        self.target_encoder = target_encoder
+        super(_WideDTATrainer, self).__init__(
+            lr=lr,
+            drug_encoder=drug_encoder,
+            target_encoder=target_encoder,
+            decoder=decoder,
+            motif_encoder=motif_encoder,
+            ci_metric=ci_metric,
+        )
         self.motif_encoder = motif_encoder
-        self.decoder = decoder
-
-    def configure_optimizers(self):
-        """
-        Config adam as default optimizer.
-        """
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
-        return optimizer
 
     def forward(self, x_drug, x_target, x_motif):
         """
@@ -233,51 +217,6 @@ class _WideDTATrainer(pl.LightningModule):
         output = self.decoder(comb_emb)
 
         return output
-
-    def training_step(self, train_batch):
-        """
-        Compute and return the training loss on one step
-        """
-        x_drug, x_target, x_motif, y = train_batch
-
-        y_pred = self(x_drug, x_target, x_motif)
-        loss = F.mse_loss(y_pred, y.view(-1, 1))
-        if self.ci_metric:
-            ci = concordance_index(y, y_pred)
-            self.log("train_ci", ci, on_epoch=True, on_step=True, prog_bar=True)
-            self.logger.log_metrics({"train_step_ci": ci}, self.global_step)
-        self.log("train_loss", loss, on_epoch=True, on_step=True, prog_bar=True)
-        self.logger.log_metrics({"train_step_loss": loss}, self.global_step)
-
-        return loss
-
-    def validation_step(self, valid_batch):
-        x_drug, x_target, x_motif, y = valid_batch
-        y_pred = self(x_drug, x_target, x_motif)
-        loss = F.mse_loss(y_pred, y.view(-1, 1))
-
-        if self.ci_metric:
-            ci = concordance_index(y, y_pred)
-            self.log("valid_ci", ci, on_epoch=True, on_step=False, prog_bar=True)
-            self.logger.log_metrics({"valid_step_ci": ci}, self.global_step)
-        self.log("valid_loss", loss, on_epoch=True, on_step=False, prog_bar=True)
-        self.logger.log_metrics({"valid_step_loss": loss}, self.global_step)
-
-        return loss
-
-    def test_step(self, test_batch):
-        """
-        Compute and return the test loss on one step
-        """
-        x_drug, x_target, x_motif, y = test_batch
-        y_pred = self(x_drug, x_target, x_motif)
-        loss = F.mse_loss(y_pred, y.view(-1, 1))
-        if self.ci_metric:
-            ci = concordance_index(y, y_pred)
-            self.log("test_ci", ci, on_epoch=True, on_step=False)
-        self.log("test_loss", loss, on_epoch=True, on_step=False, prog_bar=True)
-
-        return loss
 
 
 class _WideDTA:

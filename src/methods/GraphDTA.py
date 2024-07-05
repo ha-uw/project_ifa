@@ -1,5 +1,7 @@
 import torch
 import torch.nn.functional as F
+import json
+import numpy as np
 import pytorch_lightning as pl
 from torch.utils.data import Dataset
 from pytorch_lightning.callbacks import ModelCheckpoint
@@ -10,15 +12,16 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
 from sklearn.model_selection import KFold
 from pathlib import Path
+
 from .configs import ConfigLoader
 from data.loading import TDCDataset
 from data.processing import smile_to_graph, tokenize_target
 from modules.decoders import MLP
 from modules.encoders import CNN, GAT_GCN, GAT, GCN, GIN
 from modules.trainers import BaseDTATrainer
-from data.evaluation import concordance_index
 
 
+# =============================== Code ==================================
 class GraphDTA:
     def __init__(
         self, config_file: str, drug_encoder: str = "GCN", fast_dev_run=False
@@ -27,17 +30,13 @@ class GraphDTA:
             config_file, drug_encoder=drug_encoder, fast_dev_run=fast_dev_run
         )
 
-    def make_model(self):
-        self._graphdta.make_model()
-
-    def train(self):
-        self._graphdta.train()
-
     def run_k_fold_validation(self, n_splits=5):
         self._graphdta.run_k_fold_validation(n_splits=n_splits)
 
-    def predict(self):
-        raise NotImplementedError
+    def resume_training(self, version, last_completed_fold):
+        self._graphdta.resume_training(
+            version=version, last_completed_fold=last_completed_fold
+        )
 
 
 class GraphDTADataHandler(Dataset):
@@ -64,13 +63,14 @@ class GraphDTADataHandler(Dataset):
 
     def slice_data(self, indices: list):
         self.data = self.data.iloc[indices]
+        print("Fold size:", self.data.shape[0])
         self._filter_data()
-        self.data.reset_index(drop=True, inplace=True)
 
     def _filter_data(self):
         original_size = self.data.shape[0]
         self.data.drop_duplicates(subset=["Drug", "Target"], inplace=True)
         self.data.fillna("")
+        self.data.reset_index(drop=True, inplace=True)
 
         n_rows_out = original_size - self.data.shape[0]
 
@@ -92,6 +92,7 @@ class GraphDTADataHandler(Dataset):
 
     def __getitem__(self, index):
         drug, target, label = self._fetch_data(index)
+
         return drug, target, label
 
 
@@ -117,18 +118,6 @@ class GraphDTATrainer(BaseDTATrainer):
 
         return output
 
-    def validation_step(self, valid_batch, batch_idx):
-        x_drug, x_target, y = valid_batch
-        y_pred = self(x_drug, x_target)
-        loss = F.mse_loss(y_pred, y.view(-1, 1))
-
-        if self.ci_metric:
-            ci = concordance_index(y, y_pred)
-            self.log("valid_ci", ci, on_epoch=True, on_step=False)
-        self.log("valid_loss", loss, on_epoch=True, on_step=False)
-
-        return loss
-
 
 class _GraphDTA:
     config: ConfigLoader
@@ -145,10 +134,6 @@ class _GraphDTA:
         self.config = cl
 
     def make_model(self):
-        if hasattr(self, "model"):
-            print(self.model)
-            return
-
         match self.drug_encoder:
             case "GAT":
                 drug_encoder = GAT(
@@ -275,7 +260,30 @@ class _GraphDTA:
 
         trainer.fit(self.model, train_loader, valid_loader)
 
-    def run_k_fold_validation(self, n_splits=5):
+    def _load_or_create_folds(self, kfold, dataset, folds_file):
+        if folds_file.exists():
+            print("Loading folds from file.")
+            with folds_file.open("r") as file:
+                folds_data = json.load(file)
+        else:
+            folds_data = [
+                {"train": train_idx.tolist(), "val": val_idx.tolist()}
+                for train_idx, val_idx in kfold.split(dataset)
+            ]
+            with folds_file.open("w") as file:
+                json.dump(folds_data, file)
+
+        return [(np.array(fold["train"]), np.array(fold["val"])) for fold in folds_data]
+
+    def _prepare_datasets(self, dataset, train_idx, val_idx):
+        train_dataset = GraphDTADataHandler(dataset=dataset)
+        train_dataset.slice_data(train_idx)
+        val_dataset = GraphDTADataHandler(dataset=dataset)
+        val_dataset.slice_data(val_idx)
+
+        return train_dataset, val_dataset
+
+    def run_k_fold_validation(self, n_splits=5, start_from_fold=0):
         kfold = KFold(n_splits=n_splits, shuffle=True)
 
         dataset = TDCDataset(
@@ -285,17 +293,22 @@ class _GraphDTA:
             print_stats=True,
         )
 
-        for fold_n, (train_idx, val_idx) in enumerate(kfold.split(dataset)):
-            train_dataset = GraphDTADataHandler(dataset=dataset)
-            train_dataset.slice_data(train_idx)
+        folds_file = Path(dataset.path) / f"{dataset.name}_folds.json"
+        folds_indices = self._load_or_create_folds(kfold, dataset, folds_file)
 
-            val_dataset = GraphDTADataHandler(dataset=dataset)
-            val_dataset.slice_data(val_idx)
-
+        for fold_n, (train_idx, val_idx) in enumerate(folds_indices):
+            if fold_n < start_from_fold:
+                continue
+            train_dataset, val_dataset = self._prepare_datasets(
+                dataset, train_idx, val_idx
+            )
             train_loader, valid_loader = self._make_data_loaders(
                 train_dataset=train_dataset, val_dataset=val_dataset
             )
-
             self.train(
                 train_loader=train_loader, valid_loader=valid_loader, fold_n=fold_n
             )
+
+    def resume_training(self, version: str | int, last_completed_fold: str | int):
+        self._version = str(version)
+        self.run_k_fold_validation(n_splits=5, start_from_fold=last_completed_fold + 1)

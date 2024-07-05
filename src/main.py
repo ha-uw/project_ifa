@@ -23,5 +23,5 @@ if __name__ == "__main__":
     gd = GraphDTA(config_file=Path("configs", "GraphDTA", "davis.yaml"))
 
     # wd.run_k_fold_validation(n_splits=5)
-    wd.resume_training(version=3, last_completed_fold=0)
+    # wd.resume_training(version=3, last_completed_fold=0)
     dd.run_k_fold_validation(n_splits=5)

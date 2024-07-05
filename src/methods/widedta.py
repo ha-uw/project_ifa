@@ -48,17 +48,20 @@ class WideDTA:
 
 
 class _WideDTADataHandler(Dataset):
-    MAX_DRUG_LEN = 85
-    MAX_TARGET_LEN = 1000
-    MAX_MOTIF_LEN = 500
+    drug_max_len = 85
+    target_max_len = 1000
+    motif_max_len = 500
 
     word_to_int = {"Drug": {}, "Target": {}, "Motif": {}}
 
-    def __init__(self, dataset: Dataset):
+    def __init__(self, dataset: Dataset, drug_max_len, target_max_len, motif_max_len):
         self.dataset = dataset
         self.path = dataset.path
         self.dataset_name = dataset.name
         self.data = dataset.data.copy(deep=True)
+        self.drug_max_len = drug_max_len
+        self.target_max_len = target_max_len
+        self.motif_max_len = motif_max_len
 
     def __len__(self):
         return len(self.data)
@@ -112,15 +115,15 @@ class _WideDTADataHandler(Dataset):
         print("Converting sequences to words.")
 
         self.data["Drug"] = self.data["Drug"].apply(
-            lambda x: seq_to_words(x, word_len=8, max_length=self.MAX_DRUG_LEN)
+            lambda x: seq_to_words(x, word_len=8, max_length=self.drug_max_len)
         )
 
         self.data["Target"] = self.data["Target"].apply(
-            lambda x: seq_to_words(x, word_len=3, max_length=self.MAX_TARGET_LEN)
+            lambda x: seq_to_words(x, word_len=3, max_length=self.target_max_len)
         )
 
         self.data["Motif"] = self.data["Motif"].apply(
-            lambda x: seq_to_words(x, word_len=3, max_length=self.MAX_MOTIF_LEN)
+            lambda x: seq_to_words(x, word_len=3, max_length=self.motif_max_len)
         )
 
     def _make_words_dics(self):
@@ -150,21 +153,21 @@ class _WideDTADataHandler(Dataset):
         drug = encode_word(
             drug,
             word_to_int=self.word_to_int["Drug"],
-            length=self.MAX_DRUG_LEN,
+            length=self.drug_max_len,
         )
         drug = torch.LongTensor(drug)
 
         target = encode_word(
             target,
             word_to_int=self.word_to_int["Target"],
-            length=self.MAX_TARGET_LEN,
+            length=self.target_max_len,
         )
         target = torch.LongTensor(target)
 
         motif = encode_word(
             motif,
             word_to_int=self.word_to_int["Motif"],
-            length=self.MAX_MOTIF_LEN,
+            length=self.motif_max_len,
         )
         motif = torch.LongTensor(motif)
 
@@ -373,77 +376,6 @@ class _WideDTA:
         trainer.fit(self.model, train_loader, valid_loader)
         print(checkpoint_callback.best_model_path)
 
-    # ==========================================================================
-    # def run_k_fold_validation(self, n_splits=5):
-    #     kfold = KFold(n_splits=n_splits, shuffle=True)
-
-    #     dataset = TDCDataset(
-    #         name=self.config.Dataset.name,
-    #         path=self.config.Dataset.path,
-    #         label_to_log=self.config.Dataset.label_to_log,
-    #         print_stats=True,
-    #         harmonize_affinities=self.config.Dataset.harmonize_affinities,
-    #     )
-
-    #     for fold_n, (train_idx, val_idx) in enumerate(kfold.split(dataset)):
-    #         train_dataset = _WideDTADataHandler(dataset=dataset)
-    #         train_dataset.slice_data(train_idx)
-
-    #         val_dataset = _WideDTADataHandler(dataset=dataset)
-    #         val_dataset.slice_data(val_idx)
-
-    #         train_loader, valid_loader = self._make_data_loaders(
-    #             train_dataset=train_dataset, val_dataset=val_dataset
-    #         )
-
-    #         self.train(
-    #             train_loader=train_loader, valid_loader=valid_loader, fold_n=fold_n
-    #         )
-
-    # def run_k_fold_validation(self, n_splits=5):
-    #     kfold = KFold(n_splits=n_splits, shuffle=True)
-
-    #     dataset = TDCDataset(
-    #         name=self.config.Dataset.name,
-    #         path=self.config.Dataset.path,
-    #         label_to_log=self.config.Dataset.label_to_log,
-    #         print_stats=True,
-    #         harmonize_affinities=self.config.Dataset.harmonize_affinities,
-    #     )
-
-    #     folds_file = Path(dataset.path) / "folds.json"
-
-    #     if folds_file.exists():
-    #         with open(folds_file, "r") as file:
-    #             folds_data = json.load(file)
-    #             folds_indices = [
-    #                 (np.array(fold["train"]), np.array(fold["val"]))
-    #                 for fold in folds_data
-    #             ]
-    #     else:
-    #         folds_indices = list(kfold.split(dataset))
-    #         folds_data = [
-    #             {"train": train_idx.tolist(), "val": val_idx.tolist()}
-    #             for train_idx, val_idx in folds_indices
-    #         ]
-    #         with open(folds_file, "w") as file:
-    #             json.dump(folds_data, file)
-
-    #     for fold_n, (train_idx, val_idx) in enumerate(folds_indices):
-    #         train_dataset = _WideDTADataHandler(dataset=dataset)
-    #         train_dataset.slice_data(train_idx)
-
-    #         val_dataset = _WideDTADataHandler(dataset=dataset)
-    #         val_dataset.slice_data(val_idx)
-
-    #         train_loader, valid_loader = self._make_data_loaders(
-    #             train_dataset=train_dataset, val_dataset=val_dataset
-    #         )
-
-    #         self.train(
-    #             train_loader=train_loader, valid_loader=valid_loader, fold_n=fold_n
-    #         )
-
     def _load_or_create_folds(self, kfold, dataset, folds_file):
         if folds_file.exists():
             print("Loading folds from file.")
@@ -460,9 +392,20 @@ class _WideDTA:
         return [(np.array(fold["train"]), np.array(fold["val"])) for fold in folds_data]
 
     def _prepare_datasets(self, dataset, train_idx, val_idx):
-        train_dataset = _WideDTADataHandler(dataset=dataset)
+        train_dataset = _WideDTADataHandler(
+            dataset=dataset,
+            drug_max_len=self.config.Encoder.Drug.sequence_length,
+            target_max_len=self.config.Encoder.Target.sequence_length,
+            motif_max_len=self.config.Encoder.Motif.sequence_length,
+        )
         train_dataset.slice_data(train_idx)
-        val_dataset = _WideDTADataHandler(dataset=dataset)
+
+        val_dataset = _WideDTADataHandler(
+            dataset=dataset,
+            drug_max_len=self.config.Encoder.Drug.sequence_length,
+            target_max_len=self.config.Encoder.Target.sequence_length,
+            motif_max_len=self.config.Encoder.Motif.sequence_length,
+        )
         val_dataset.slice_data(val_idx)
 
         return train_dataset, val_dataset

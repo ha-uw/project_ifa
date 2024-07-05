@@ -34,15 +34,19 @@ class DeepDTA:
 
 
 class DeepDTADataHandler(Dataset):
-    def __init__(self, dataset: Dataset):
+    def __init__(self, dataset: Dataset, drug_max_len, target_max_len):
         self.dataset = dataset
         self.path = dataset.path
         self.dataset_name = dataset.name
         self.data = dataset.data.copy(deep=True)
+        self.drug_max_len = drug_max_len
+        self.target_max_len = target_max_len
 
     def _process_data(self, drug, target):
-        drug = torch.LongTensor(tokenize_smiles(drug))
-        target = torch.LongTensor(tokenize_target(target))
+        drug = torch.LongTensor(tokenize_smiles(drug, max_length=self.drug_max_len))
+        target = torch.LongTensor(
+            tokenize_target(target, max_length=self.target_max_len)
+        )
 
         return drug, target
 
@@ -254,9 +258,17 @@ class _DeepDTA:
         return [(np.array(fold["train"]), np.array(fold["val"])) for fold in folds_data]
 
     def _prepare_datasets(self, dataset, train_idx, val_idx):
-        train_dataset = DeepDTADataHandler(dataset=dataset)
+        train_dataset = DeepDTADataHandler(
+            dataset=dataset,
+            drug_max_len=self.config.Encoder.Drug.sequence_length,
+            target_max_len=self.config.Encoder.Target.sequence_length,
+        )
         train_dataset.slice_data(train_idx)
-        val_dataset = DeepDTADataHandler(dataset=dataset)
+        val_dataset = DeepDTADataHandler(
+            dataset=dataset,
+            drug_max_len=self.config.Encoder.Drug.sequence_length,
+            target_max_len=self.config.Encoder.Target.sequence_length,
+        )
         val_dataset.slice_data(val_idx)
 
         return train_dataset, val_dataset

@@ -18,11 +18,11 @@ Encoder:
   embedding_dim: 128
 
   Drug:
-    sequence_length: 85
+    sequence_length: 100
   Target:
     sequence_length: 1000
   Motif:
-    sequence_length: 500
+    sequence_length: 650
 
 Decoder:
   # MPL

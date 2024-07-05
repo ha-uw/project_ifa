@@ -18,7 +18,7 @@ Encoder:
     # CNN
     embedding_dim: 128
     num_embeddings: 64
-    sequence_length: 85
+    sequence_length: 100
     num_filters: 32
     num_conv_layers: 3
     kernel_size: [4, 6, 8]
@@ -26,7 +26,7 @@ Encoder:
     # CNN
     embedding_dim: 128
     num_embeddings: 25
-    sequence_length: 1200
+    sequence_length: 1000
     num_filters: 32
     num_conv_layers: 3
     kernel_size: [4, 8, 12]

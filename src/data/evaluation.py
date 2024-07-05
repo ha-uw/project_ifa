@@ -26,7 +26,7 @@ def mse(y, y_pred):
 #     return rs
 
 
-def concordance_index(y, y_pred):
+def concordance_index_ORIGINAL(y, y_pred):
     """
     Calculate the Concordance Index (CI), which is a metric to measure the proportion of `concordant pairs
     <https://en.wikipedia.org/wiki/Concordant_pair>`_ between real and
@@ -50,5 +50,48 @@ def concordance_index(y, y_pred):
     if pair:
         result = total_loss / pair
         return result.item()
+    else:
+        return 0.0
+
+
+# def concordance_index(y, y_pred):
+#     """
+#     Optimized calculation of the Concordance Index (CI) using vectorized operations.
+#     """
+#     y = np.array(y)
+#     y_pred = np.array(y_pred)
+
+#     y_diffs = np.subtract.outer(y, y) > 0
+#     y_pred_diffs = np.subtract.outer(y_pred, y_pred)
+
+#     concordant_pairs = np.sum((y_diffs & (y_pred_diffs > 0)).flatten())
+#     tied_pairs = np.sum((y_diffs & (y_pred_diffs == 0)).flatten())
+
+#     total_pairs = concordant_pairs + 0.5 * tied_pairs
+#     total_valid_pairs = np.sum(y_diffs)
+
+#     if total_valid_pairs > 0:
+#         return total_pairs / total_valid_pairs
+#     else:
+#         return 0.0
+
+
+def concordance_index(y, y_pred):
+    """
+    Optimized calculation of the Concordance Index (CI) using vectorized operations with PyTorch tensors.
+    """
+    # Compute differences
+    y_diffs = torch.unsqueeze(y, 0) - torch.unsqueeze(y, 1) > 0
+    y_pred_diffs = torch.unsqueeze(y_pred, 0) - torch.unsqueeze(y_pred, 1)
+
+    # Calculate concordant and tied pairs
+    concordant_pairs = torch.sum(y_diffs & (y_pred_diffs > 0))
+    tied_pairs = torch.sum(y_diffs & (y_pred_diffs == 0))
+
+    total_pairs = concordant_pairs + 0.5 * tied_pairs
+    total_valid_pairs = torch.sum(y_diffs)
+
+    if total_valid_pairs > 0:
+        return (total_pairs / total_valid_pairs).item()
     else:
         return 0.0

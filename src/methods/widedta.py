@@ -246,7 +246,7 @@ class _WideDTATrainer(pl.LightningModule):
             ci = concordance_index(y, y_pred)
             self.log("train_ci", ci, on_epoch=True, on_step=True, prog_bar=True)
             self.logger.log_metrics({"train_step_ci": ci}, self.global_step)
-        self.log("train_loss", ci, on_epoch=True, on_step=True, prog_bar=True)
+        self.log("train_loss", loss, on_epoch=True, on_step=True, prog_bar=True)
         self.logger.log_metrics({"train_step_loss": loss}, self.global_step)
 
         return loss

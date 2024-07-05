@@ -9,7 +9,16 @@ set_float32_matmul_precision("medium")
 
 
 def parse_cmd_line_arguments():
-    parser = argparse.ArgumentParser(description="Run methods with specified action")
+    parser = argparse.ArgumentParser(description="Your application description")
+
+    # Define the 'action' as a positional argument
+    parser.add_argument(
+        "action",
+        type=str,
+        choices=["run_5_fold", "resume"],
+        help="The action to perform",
+    )
+
     parser.add_argument(
         "--method",
         type=str,
@@ -24,13 +33,21 @@ def parse_cmd_line_arguments():
         required=True,
         help="The dataset to train",
     )
+
     parser.add_argument(
-        "action",
-        type=str,
-        choices=["run_5_fold"],
-        help="The action to perform",
+        "--last_fold",
+        type=int,
+        required=False,
+        help="The last completed fold",
+    )
+    parser.add_argument(
+        "--version",
+        type=int,
+        required=False,
+        help="The version of the training to resume",
     )
 
+    # Return the parsed arguments
     return parser.parse_args()
 
 
@@ -55,6 +72,8 @@ def main():
 
     if args.action == "run_5_fold":
         method_instance.run_k_fold_validation(n_splits=5)
-    # elif args.action == "resume_training":
-    #     # Assuming each method has a resume_training method for this example
-    #     method_instance.resume_training()
+    elif args.action == "resume":
+        # Assuming each method has a resume_training method for this example
+        method_instance.resume_training(
+            version=args.version, last_completed_fold=args.last_fold
+        )

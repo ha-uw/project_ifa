@@ -113,6 +113,7 @@ class _DeepDTA:
 
     def __init__(self, config_file: str, fast_dev_run=False) -> None:
         self._load_configs(config_file)
+        self._seed_random()
         self.fast_dev_run = fast_dev_run
 
     def _load_configs(self, config_path: str):
@@ -120,6 +121,9 @@ class _DeepDTA:
         cl.load_config(config_path=config_path)
 
         self.config = cl
+
+    def _seed_random(self):
+        pl.seed_everything(seed=self.config.General.random_seed, workers=True)
 
     def make_model(self):
         drug_encoder = CNN(
@@ -194,7 +198,7 @@ class _DeepDTA:
         tb_logger = TensorBoardLogger(
             save_dir=output_dir,
             name=self.config.Dataset.name,
-            version=Path(self._version, f"fold_{fold_n + 1}"),
+            version=Path(self._version, f"fold_{fold_n}"),
         )
 
         return tb_logger
@@ -258,8 +262,6 @@ class _DeepDTA:
         return train_dataset, val_dataset
 
     def run_k_fold_validation(self, n_splits=5, start_from_fold=0):
-        kfold = KFold(n_splits=n_splits, shuffle=True)
-
         dataset = TDCDataset(
             name=self.config.Dataset.name,
             path=self.config.Dataset.path,
@@ -267,8 +269,14 @@ class _DeepDTA:
             print_stats=True,
         )
 
+        k_fold = KFold(
+            n_splits=n_splits,
+            shuffle=True,
+            random_state=self.config.General.random_seed,
+        )
+
         folds_file = Path(dataset.path) / f"{dataset.name}_folds.json"
-        folds_indices = self._load_or_create_folds(kfold, dataset, folds_file)
+        folds_indices = self._load_or_create_folds(k_fold, dataset, folds_file)
 
         for fold_n, (train_idx, val_idx) in enumerate(folds_indices):
             if fold_n < start_from_fold:

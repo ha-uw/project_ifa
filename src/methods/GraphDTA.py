@@ -220,7 +220,7 @@ class _GraphDTA:
         tb_logger = TensorBoardLogger(
             save_dir=output_dir,
             name=self.config.Dataset.name,
-            version=Path(self._version, f"fold_{fold_n + 1}"),
+            version=Path(self._version, f"fold_{fold_n}"),
         )
 
         return tb_logger
@@ -284,7 +284,11 @@ class _GraphDTA:
         return train_dataset, val_dataset
 
     def run_k_fold_validation(self, n_splits=5, start_from_fold=0):
-        kfold = KFold(n_splits=n_splits, shuffle=True)
+        kfold = KFold(
+            n_splits=n_splits,
+            shuffle=True,
+            random_state=self.config.General.random_seed,
+        )
 
         dataset = TDCDataset(
             name=self.config.Dataset.name,

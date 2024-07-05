@@ -468,7 +468,11 @@ class _WideDTA:
         return train_dataset, val_dataset
 
     def run_k_fold_validation(self, n_splits=5, start_from_fold=0):
-        kfold = KFold(n_splits=n_splits, shuffle=True)
+        kfold = KFold(
+            n_splits=n_splits,
+            shuffle=True,
+            random_state=self.config.General.random_seed,
+        )
         dataset = TDCDataset(
             name=self.config.Dataset.name,
             path=self.config.Dataset.path,

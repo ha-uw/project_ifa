@@ -1,0 +1,48 @@
+# DeepDTA - BindingDB Ki
+General:
+  fast_dev_run: False
+  random_seed: 42
+  output_dim: 96
+  early_stop: False
+  min_delta: 0.001
+  patience_epochs: 10
+
+Dataset:
+  name: "bindingdb_kd"
+  path: "data"
+  label_to_log: True
+  harmonize_affinities: True
+
+Encoder:
+  Drug:
+    # CNN
+    embedding_dim: 128
+    num_embeddings: 64
+    sequence_length: 100
+    num_filters: 32
+    num_conv_layers: 3
+    kernel_size: [4, 6, 8]
+  Target:
+    # CNN
+    embedding_dim: 128
+    num_embeddings: 25
+    sequence_length: 1000
+    num_filters: 32
+    num_conv_layers: 3
+    kernel_size: [4, 8, 12]
+
+Decoder:
+  # MPL
+  in_dim: 192
+  hidden_dim: 1024
+  out_dim: 512
+  dropout_rate: 0.1
+  num_fc_layers: 3
+
+Trainer:
+  ci_metric: True
+  train_batch_size: 256
+  test_batch_size: 256
+  min_epochs: 0
+  max_epochs: 100
+  learning_rate: 0.001

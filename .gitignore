@@ -5,3 +5,4 @@ __pycache__
 /data/**/*.tab
 outputs/*
 bindingdb_ki.csv
+bindingdb_ic50.csv

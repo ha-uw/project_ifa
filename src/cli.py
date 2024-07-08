@@ -67,7 +67,8 @@ def main():
         )
     elif args.method == "graphdta":
         method_instance = GraphDTA(
-            config_file=Path("configs", "GraphDTA", f"{args.dataset}.yaml")
+            config_file=Path("configs", "GraphDTA", f"{args.dataset}.yaml"),
+            drug_encoder="GAT_GCN",
         )
 
     if args.action == "run_5_fold":

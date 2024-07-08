@@ -201,7 +201,7 @@ class _GraphDTA:
         return train_loader, val_loader
 
     def _get_logger(self, fold_n):
-        output_dir = Path("outputs", "GraphDTA")
+        output_dir = Path("outputs", f"GraphDTA_{self.drug_encoder}")
         dataset_dir = Path(output_dir, self.config.Dataset.name)
 
         dataset_dir.mkdir(parents=True, exist_ok=True)

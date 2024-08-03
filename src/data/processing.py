@@ -5,13 +5,11 @@ https://github.com/hkmztrk/DeepDTA and https://github.com/thinng/GraphDTA.
 
 import logging
 
-from pathlib import Path
 import numpy as np
 from rdkit import Chem
 from functools import lru_cache
 import networkx as nx
 import deepsmiles
-import json
 
 from .constants import Tokens, AtomFeatures
 

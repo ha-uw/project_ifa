@@ -1,5 +1,10 @@
+"""
+deepdta.py
+
+Module for implementing the DeepDTA model and running k-fold validation.
+"""
+
 import torch
-import torch.nn.functional as F
 import json
 import numpy as np
 import pytorch_lightning as pl
@@ -12,7 +17,7 @@ from pathlib import Path
 from sklearn.model_selection import KFold
 
 from .configs import ConfigLoader
-from src.data.processing import tokenize_smiles, tokenize_target
+from src.data.processing import tokenise_smiles, tokenise_target
 from src.data.loading import TDCDataset
 from src.modules.encoders import CNN
 from src.modules.decoders import MLP
@@ -43,9 +48,9 @@ class DeepDTADataHandler(Dataset):
         self.target_max_len = target_max_len
 
     def _process_data(self, drug, target):
-        drug = torch.LongTensor(tokenize_smiles(drug, max_length=self.drug_max_len))
+        drug = torch.LongTensor(tokenise_smiles(drug, max_length=self.drug_max_len))
         target = torch.LongTensor(
-            tokenize_target(target, max_length=self.target_max_len)
+            tokenise_target(target, max_length=self.target_max_len)
         )
 
         return drug, target

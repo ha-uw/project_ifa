@@ -1,3 +1,9 @@
+"""
+configs.py
+
+Module for loading and populating configuration data from YAML files.
+"""
+
 import yaml
 from pathlib import Path
 from dataclasses import dataclass
@@ -5,6 +11,16 @@ from dataclasses import dataclass
 
 @dataclass
 class ConfigLoader:
+    """
+    A class for loading and populating configuration data.
+
+    Methods:
+    - load_config(config_path): Loads the configuration data from the specified file path.
+
+    Attributes:
+    - config_path: The file path of the configuration file.
+    """
+
     def load_config(self, config_path):
         if not Path(config_path).is_file():
             raise FileNotFoundError(

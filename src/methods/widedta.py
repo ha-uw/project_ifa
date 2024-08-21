@@ -1,5 +1,10 @@
+"""
+widedta.py
+
+Module for implementing the WideDTA model and its associated training and data handling routines.
+"""
+
 import torch
-import torch.nn.functional as F
 import pandas as pd
 import pytorch_lightning as pl
 import numpy as np

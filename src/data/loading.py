@@ -1,3 +1,9 @@
+"""
+loading.py
+
+Module for loading and handling datasets.
+"""
+
 import pandas as pd
 from pathlib import Path
 from tdc.multi_pred import DTI
@@ -5,7 +11,22 @@ from torch.utils.data import Dataset
 
 
 class TDCDataset(Dataset):
-    """ """
+    """
+    A dataset class for TDC (Therapeutic Data Commons) dataset.
+    Args:
+        name (str): The name of the dataset.
+        path (str, optional): The path to the dataset. Defaults to "data".
+        label_to_log (bool, optional): Whether to convert labels to logarithmic scale. Defaults to False.
+        print_stats (bool, optional): Whether to print dataset statistics. Defaults to True.
+        split (str, optional): The split of the dataset to use. Defaults to None.
+        harmonize_affinities (bool, optional): Whether to harmonize affinities. Defaults to False.
+    Attributes:
+        name (str): The name of the dataset.
+        path (Path): The path to the dataset.
+        data (pd.DataFrame): The dataset.
+    """
+
+    ...
 
     name: str
     path: Path

@@ -4,5 +4,6 @@ test*
 __pycache__
 /data/**/*.tab
 outputs/*
+notebooks/
 bindingdb_ki.csv
 bindingdb_ic50.csv

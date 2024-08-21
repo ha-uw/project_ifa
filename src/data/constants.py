@@ -1,4 +1,19 @@
+"""
+constants.py
+
+This module contains dictionaries used throughout the application.
+"""
+
+
 class Tokens:
+    """
+    Class representing a collection of tokens.
+
+    Attributes:
+        CHARPROTSET (dict): A dictionary mapping protein sequence characters (amino acids) to integers.
+        CHARISOSMISET (dict): A dictionary mapping SMILES characters to integers.
+    """
+
     CHARPROTSET = {
         "A": 1,
         "C": 2,
@@ -96,6 +111,13 @@ class Tokens:
 
 
 class AtomFeatures:
+    """
+    Class representing atom features.
+    Attributes:
+        ALLOWED_VALUES (list): List of allowed values for atom features.
+        CHARATOMSET (list): List of character atom sets.
+    """
+
     ALLOWED_VALUES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
     CHARATOMSET = [

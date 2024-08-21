@@ -1,3 +1,9 @@
+"""
+trainers.py
+
+This module contains the implementation of the Lightning trainers used in this project.
+"""
+
 import torch
 import pytorch_lightning as pl
 import torch.nn.functional as F
@@ -7,7 +13,17 @@ from src.data.evaluation import concordance_index
 
 # Trainer ----------------------------------------------------------------------
 class BaseDTATrainer(pl.LightningModule):
-    """ """
+    """
+    Base class for trainers in the DTATrainer module.
+
+    Args:
+        drug_encoder: The drug encoder module.
+        target_encoder: The target encoder module.
+        decoder: The decoder module.
+        lr (float): The learning rate for the optimizer. Default is 0.001.
+        ci_metric (bool): Whether to compute the concordance index metric. Default is True.
+        **kwargs: Additional keyword arguments.
+    """
 
     def __init__(
         self, drug_encoder, target_encoder, decoder, lr=0.001, ci_metric=True, **kwargs

@@ -1,5 +1,10 @@
+"""
+graphdta.py
+
+Module for implementing the GraphDTA model and its training pipeline.
+"""
+
 import torch
-import torch.nn.functional as F
 import json
 import numpy as np
 import pytorch_lightning as pl
@@ -15,7 +20,7 @@ from pathlib import Path
 
 from .configs import ConfigLoader
 from src.data.loading import TDCDataset
-from src.data.processing import smile_to_graph, tokenize_target
+from src.data.processing import smile_to_graph, tokenise_target
 from src.modules.decoders import MLP
 from src.modules.encoders import CNN, GAT_GCN, GAT, GCN, GIN
 from src.modules.trainers import BaseDTATrainer
@@ -55,7 +60,7 @@ class GraphDTADataHandler(Dataset):
             y=torch.Tensor([label]),
         )
         drug.__setitem__("c_size", torch.LongTensor([c_size]))
-        target = torch.LongTensor(tokenize_target(target, self.target_max_len))
+        target = torch.LongTensor(tokenise_target(target, self.target_max_len))
 
         return drug, target
 

@@ -1,8 +1,13 @@
+"""
+preprocessing.py
+
+Module for preprocessing data.
+"""
+
 import aiofiles
 import asyncio
 import aiohttp
 from bs4 import BeautifulSoup
-from functools import lru_cache
 
 from pathlib import Path
 import pandas as pd
@@ -11,6 +16,19 @@ from torch.utils.data import Dataset
 
 
 class MotifFetcher:
+    """
+    A class for fetching motifs from a given protein sequence.
+    Args:
+        concurrent_sessions (int): The number of concurrent HTTP sessions to use for fetching motifs. Default is 2.
+        max_unsuccessful_responses (int): The maximum number of unsuccessful HTTP responses allowed before stopping. Default is 5.
+    Methods:
+        get_motifs(data: Dataset, path: str, name: str) -> pd.DataFrame:
+            Fetches motifs from the given dataset and saves them to a CSV file.
+            Returns a pandas DataFrame containing the fetched motifs.
+    Attributes:
+        SEARCH_MOTIF_URL (str): The URL of the motif search endpoint.
+    """
+
     SEARCH_MOTIF_URL = "https://www.genome.jp/tools-bin/search_motif_lib"
 
     def __init__(self, concurrent_sessions=2, max_unsuccessful_responses=5):

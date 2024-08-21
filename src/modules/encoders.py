@@ -4,9 +4,6 @@ encoders.py
 This module contains the implementation of various encoders used in the project. 
 Encoders are components of a machine learning model that transform the high-dimensional 
 input data into a lower-dimensional representation suitable for processing by the model.
-
-Author: Raul Oliveira
-Date: 01/06/2024
 """
 
 # Imports ---------------------------------------------------------------
@@ -20,8 +17,28 @@ from torch_geometric.nn import global_add_pool, global_max_pool, global_mean_poo
 # Encoders --------------------------------------------------------------
 class CNN(nn.Module):
     """
-    Convolutional Neural Network (CNN) encoder.
-    This encoder uses an embedding layer followed by three convolutional layers and a global max pooling layer.
+    CNN Module
+
+    This module implements a Convolutional Neural Network (CNN) for text classification.
+
+    Args:
+        num_embeddings (int): The number of unique embeddings in the input.
+        embedding_dim (int): The dimensionality of the embedding vectors.
+        sequence_length (int): The length of the input sequences.
+        num_filters (int): The number of filters in each convolutional layer.
+        kernel_size (list or int): The size of the convolutional kernels. If a list, it should have a length equal to num_conv_layers.
+        num_conv_layers (int): The number of convolutional layers.
+
+    Attributes:
+        embedding (nn.Embedding): The embedding layer.
+        conv_layers (nn.ModuleList): The list of convolutional layers.
+        global_max_pool (nn.AdaptiveMaxPool1d): The global max pooling layer.
+
+    Methods:
+        forward(x): Performs forward pass through the CNN.
+
+    Raises:
+        ValueError: If the number of kernel sizes is not equal to the number of convolutional layers.
     """
 
     def __init__(

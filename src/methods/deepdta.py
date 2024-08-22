@@ -21,7 +21,7 @@ from src.data.processing import tokenise_smiles, tokenise_target
 from src.data.loading import TDCDataset
 from src.modules.encoders import CNN
 from src.modules.decoders import MLP
-from src.modules.trainers import BaseDTATrainer
+from src.modules.trainers import DTATrainer
 
 
 # =============================== Code ==================================
@@ -93,7 +93,7 @@ class DeepDTADataHandler(Dataset):
         return drug, target, label
 
 
-class _DeepDTATrainer(BaseDTATrainer):
+class _DeepDTATrainer(DTATrainer):
     """ """
 
     def __init__(self, drug_encoder, target_encoder, decoder, lr, ci_metric, **kwargs):

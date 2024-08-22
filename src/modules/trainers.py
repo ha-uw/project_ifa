@@ -2,6 +2,8 @@
 trainers.py
 
 This module contains the implementation of the Lightning trainers used in this project.
+
+Inspired by PyKale. See https://github.com/pykale/pykale
 """
 
 import torch
@@ -12,7 +14,7 @@ from src.data.evaluation import concordance_index
 
 
 # Trainer ----------------------------------------------------------------------
-class BaseDTATrainer(pl.LightningModule):
+class DTATrainer(pl.LightningModule):
     """
     Base class for trainers in the DTATrainer module.
 
@@ -28,7 +30,7 @@ class BaseDTATrainer(pl.LightningModule):
     def __init__(
         self, drug_encoder, target_encoder, decoder, lr=0.001, ci_metric=True, **kwargs
     ):
-        super(BaseDTATrainer, self).__init__()
+        super(DTATrainer, self).__init__()
         # self.save_hyperparameters()
         self.lr = lr
         self.ci_metric = ci_metric

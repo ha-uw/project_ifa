@@ -50,25 +50,25 @@ class TestProcessing(unittest.TestCase):
         self.assertEqual(len(features), 2)
         self.assertEqual(len(edge_index), 2)
 
-    def test_tokenize_sequence(self):
-        encoding = processing.tokenize_sequence("ABC", constants.Tokens.CHARPROTSET, 5)
+    def test_tokenise_sequence(self):
+        encoding = processing.tokenise_sequence("ABC", constants.Tokens.CHARPROTSET, 5)
         self.assertEqual(encoding.tolist(), [1.0, 3.0, 2.0, 0.0, 0.0])
 
-    def test_tokenize_smiles(self):
-        encoding = processing.tokenize_smiles("CC", 5)
+    def test_tokenise_smiles(self):
+        encoding = processing.tokenise_smiles("CC", 5)
         self.assertEqual(len(encoding), 5)
 
-        encoding = processing.tokenize_smiles("XX", 5)
+        encoding = processing.tokenise_smiles("XX", 5)
         self.assertEqual(encoding.tolist(), [0.0] * 5)
 
-        encoding = processing.tokenize_smiles("CZi", 5, to_isomeric=False)
+        encoding = processing.tokenise_smiles("CZi", 5, to_isomeric=False)
         self.assertEqual(encoding.tolist(), [42.0, 19.0, 59.0, 0.0, 0.0])
 
-    def test_tokenize_target(self):
-        encoding = processing.tokenize_target("ABC", 5)
+    def test_tokenise_target(self):
+        encoding = processing.tokenise_target("ABC", 5)
         self.assertEqual(len(encoding), 5)
 
-        encoding = processing.tokenize_target("JJJ", 5)
+        encoding = processing.tokenise_target("JJJ", 5)
         self.assertEqual(len(encoding), 5)
 
 

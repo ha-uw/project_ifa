@@ -29,7 +29,7 @@ from src.data.processing import (
 
 from src.modules.encoders import WideCNN
 from src.modules.decoders import MLP
-from src.modules.trainers import BaseDTATrainer
+from src.modules.trainers import DTATrainer
 
 
 # =============================== Code ==================================
@@ -186,7 +186,7 @@ class _WideDTADataHandler(Dataset):
         return drug, target, motif, label
 
 
-class _WideDTATrainer(BaseDTATrainer):
+class _WideDTATrainer(DTATrainer):
     """ """
 
     def __init__(

@@ -23,7 +23,7 @@ from src.data.loading import TDCDataset
 from src.data.processing import smile_to_graph, tokenise_target
 from src.modules.decoders import MLP
 from src.modules.encoders import CNN, GAT_GCN, GAT, GCN, GIN
-from src.modules.trainers import BaseDTATrainer
+from src.modules.trainers import DTATrainer
 
 
 # =============================== Code ==================================
@@ -102,7 +102,7 @@ class GraphDTADataHandler(Dataset):
         return drug, target, label
 
 
-class GraphDTATrainer(BaseDTATrainer):
+class GraphDTATrainer(DTATrainer):
     """"""
 
     def __init__(self, drug_encoder, target_encoder, decoder, lr, ci_metric, **kwargs):

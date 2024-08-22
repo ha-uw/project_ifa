@@ -1,5 +1,5 @@
 import unittest
-from src.modules.trainers import BaseDTATrainer
+from src.modules.trainers import DTATrainer
 
 
 class MockEncoder:
@@ -12,14 +12,12 @@ class MockDecoder:
         return x
 
 
-class TestBaseDTATrainer(unittest.TestCase):
+class TestDTATrainer(unittest.TestCase):
     def setUp(self):
         self.drug_encoder = MockEncoder()
         self.target_encoder = MockEncoder()
         self.decoder = MockDecoder()
-        self.trainer = BaseDTATrainer(
-            self.drug_encoder, self.target_encoder, self.decoder
-        )
+        self.trainer = DTATrainer(self.drug_encoder, self.target_encoder, self.decoder)
 
     def test_initialization(self):
         self.assertEqual(self.trainer.drug_encoder, self.drug_encoder)

@@ -4,6 +4,9 @@ encoders.py
 This module contains the implementation of various encoders used in the project. 
 Encoders are components of a machine learning model that transform the high-dimensional 
 input data into a lower-dimensional representation suitable for processing by the model.
+
+Sources:
+https://github.com/thinng/GraphDTA
 """
 
 # Imports ---------------------------------------------------------------

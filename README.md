@@ -6,7 +6,7 @@ A comprehensive toolkit for handling various machine learning methods and datase
 
 - [Overview](#overview-)
 - [What is Ifá?](#what-is-ifá-)
-- [Installation](#installation-)
+- [Installation](#installation-%EF%B8%8F)
 - [Usage](#usage-)
 - [Features](#features-)
 - [Contributing](#contributing-)

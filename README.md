@@ -4,13 +4,13 @@ A comprehensive toolkit for handling various machine learning methods and datase
 
 ## Table of Contents 📚
 
-- [Overview](#overview-📊)
-- [What is Ifá?](#what-is-ifá-🌟)
-- [Installation](#installation-🛠️)
-- [Usage](#usage-🚀)
-- [Features](#features-✨)
-- [Contributing](#contributing-🤝)
-- [License](#license-📄)
+- [Overview](#overview-)
+- [What is Ifá?](#what-is-ifá-)
+- [Installation](#installation-)
+- [Usage](#usage-)
+- [Features](#features-)
+- [Contributing](#contributing-)
+- [License](#license-)
 
 ## Overview 📊
 

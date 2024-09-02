@@ -27,6 +27,8 @@ class MotifFetcher:
             Returns a pandas DataFrame containing the fetched motifs.
     Attributes:
         SEARCH_MOTIF_URL (str): The URL of the motif search endpoint.
+
+    Idea from DeepDrugDomain - https://github.com/yazdanimehdi/DeepDrugDomain
     """
 
     SEARCH_MOTIF_URL = "https://www.genome.jp/tools-bin/search_motif_lib"

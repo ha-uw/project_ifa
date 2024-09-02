@@ -1,5 +1,6 @@
 venv/
 test*
+.vscode
 *.tab
 __pycache__
 /data/**/*.tab

@@ -264,6 +264,7 @@ class _GraphDTA:
             fast_dev_run=self.fast_dev_run,
         )
 
+        # Run training
         trainer.fit(self.model, train_loader, valid_loader)
 
     def _load_or_create_folds(self, kfold, dataset, folds_file):

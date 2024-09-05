@@ -94,7 +94,6 @@ class DeepDTADataHandler(Dataset):
 
 
 class _DeepDTATrainer(DTATrainer):
-    """ """
 
     def __init__(self, drug_encoder, target_encoder, decoder, lr, ci_metric, **kwargs):
         super().__init__(drug_encoder, target_encoder, decoder, lr, ci_metric, **kwargs)
@@ -192,6 +191,7 @@ class _DeepDTA:
 
         dataset_dir.mkdir(parents=True, exist_ok=True)
 
+        # Define version based on folders
         if not hasattr(self, "_version"):
             version_dirs = [d for d in dataset_dir.glob("version_*/") if d.is_dir()]
             version_names = [d.name for d in version_dirs]
@@ -245,6 +245,7 @@ class _DeepDTA:
             fast_dev_run=self.fast_dev_run,
         )
 
+        # Run training
         trainer.fit(self.model, train_loader, valid_loader)
 
     def _load_or_create_folds(self, kfold, dataset, folds_file):

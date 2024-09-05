@@ -378,8 +378,8 @@ class _WideDTA:
             fast_dev_run=self.fast_dev_run,
         )
 
+        # Run training
         trainer.fit(self.model, train_loader, valid_loader)
-        print(checkpoint_callback.best_model_path)
 
     def _load_or_create_folds(self, kfold, dataset, folds_file):
         if folds_file.exists():

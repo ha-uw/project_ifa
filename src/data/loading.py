@@ -52,7 +52,7 @@ class TDCDataset(Dataset):
             self.data.harmonize_affinities(mode="mean")
 
         if label_to_log:
-            self.data.convert_to_log()
+            self.data.convert_to_log(form="binding")
 
         if split:
             self.data = self.data.get_split()[split]

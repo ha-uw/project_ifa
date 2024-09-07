@@ -1,4 +1,4 @@
-name: project_ifa
+name: ifaDTA
 channels:
   - pytorch
   - nvidia

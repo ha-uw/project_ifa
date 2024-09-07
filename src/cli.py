@@ -67,10 +67,25 @@ def main():
             config_file=Path("configs", "DeepDTA", f"{args.dataset}.yaml"),
             fast_dev_run=False,
         )
-    elif args.method == "graphdta":
+    elif args.method == "graphdta_gin":
         method_instance = GraphDTA(
             config_file=Path("configs", "GraphDTA", f"{args.dataset}.yaml"),
             drug_encoder="GIN",
+        )
+    elif args.method == "graphdta_gat":
+        method_instance = GraphDTA(
+            config_file=Path("configs", "GraphDTA", f"{args.dataset}.yaml"),
+            drug_encoder="GAT",
+        )
+    elif args.method == "graphdta_gcn":
+        method_instance = GraphDTA(
+            config_file=Path("configs", "GraphDTA", f"{args.dataset}.yaml"),
+            drug_encoder="GCN",
+        )
+    elif args.method == "graphdta_gat_gcn":
+        method_instance = GraphDTA(
+            config_file=Path("configs", "GraphDTA", f"{args.dataset}.yaml"),
+            drug_encoder="GAT_GCN",
         )
 
     if args.action == "run_5_fold":

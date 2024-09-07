@@ -22,7 +22,14 @@ def parse_cmd_line_arguments():
     parser.add_argument(
         "--method",
         type=str,
-        choices=["widedta", "deepdta", "graphdta"],
+        choices=[
+            "widedta",
+            "deepdta",
+            "graphdta_gin",
+            "graphdta_gat",
+            "graphdta_gcn",
+            "graphdta_gat_gcn",
+        ],
         required=True,
         help="The method to run",
     )

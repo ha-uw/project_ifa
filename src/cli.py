@@ -53,8 +53,6 @@ def parse_cmd_line_arguments():
 
 def main():
     args = parse_cmd_line_arguments()
-    args.method = args.method.lower()
-    args.action = args.action.lower()
 
     # Initialize the selected method
     if args.method == "widedta":
